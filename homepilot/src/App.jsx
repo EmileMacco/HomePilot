@@ -232,6 +232,101 @@ function recurringInstancesFor(iso, events) {
   return result;
 }
 
+function unfoldICS(text) {
+  // Regels die beginnen met een spatie/tab horen bij de vorige regel (ICS line folding)
+  return text.replace(/\r\n/g, "\n").split("\n").reduce((lines, line) => {
+    if ((line.startsWith(" ") || line.startsWith("\t")) && lines.length) {
+      lines[lines.length - 1] += line.slice(1);
+    } else {
+      lines.push(line);
+    }
+    return lines;
+  }, []);
+}
+
+function unescapeICSText(s) {
+  return (s || "")
+    .replace(/\\n/gi, " ")
+    .replace(/\\,/g, ",")
+    .replace(/\\;/g, ";")
+    .replace(/\\\\/g, "\\");
+}
+
+function parseICSDate(rawKey, rawValue) {
+  const isDateOnly = rawKey.includes("VALUE=DATE") || (/^\d{8}$/.test(rawValue));
+  const digits = rawValue.replace(/[TZ]/g, (m) => (m === "T" ? "T" : ""));
+  const y = rawValue.slice(0, 4);
+  const mo = rawValue.slice(4, 6);
+  const d = rawValue.slice(6, 8);
+  const date = `${y}-${mo}-${d}`;
+  if (isDateOnly || rawValue.length <= 8) return { date, time: "", allDay: true };
+  const hh = rawValue.slice(9, 11) || "00";
+  const mm = rawValue.slice(11, 13) || "00";
+  return { date, time: `${hh}:${mm}`, allDay: false };
+}
+
+function mapRRuleToRepeat(rrule) {
+  if (!rrule) return "none";
+  const freqMatch = rrule.match(/FREQ=([A-Z]+)/);
+  const intervalMatch = rrule.match(/INTERVAL=(\d+)/);
+  const freq = freqMatch ? freqMatch[1] : "";
+  const interval = intervalMatch ? Number(intervalMatch[1]) : 1;
+  if (freq === "WEEKLY") {
+    if (interval === 1) return "week";
+    if (interval === 2) return "2week";
+    if (interval === 4) return "4week";
+  }
+  if (freq === "MONTHLY" && interval === 1) return "month";
+  return "none";
+}
+
+function parseICS(text) {
+  const lines = unfoldICS(text);
+  const events = [];
+  let current = null;
+  for (const line of lines) {
+    if (line.startsWith("BEGIN:VEVENT")) {
+      current = {};
+      continue;
+    }
+    if (line.startsWith("END:VEVENT")) {
+      if (current && current.title) {
+        events.push({
+          title: current.title,
+          date: current.date || "",
+          time: current.allDay ? "" : current.time || "",
+          endTime: current.allDay ? "" : current.endTime || "",
+          allDay: !!current.allDay,
+          notes: current.notes || "",
+          repeat: mapRRuleToRepeat(current.rrule),
+        });
+      }
+      current = null;
+      continue;
+    }
+    if (!current) continue;
+    const sepIndex = line.indexOf(":");
+    if (sepIndex === -1) continue;
+    const rawKey = line.slice(0, sepIndex);
+    const rawValue = line.slice(sepIndex + 1);
+    const key = rawKey.split(";")[0];
+    if (key === "SUMMARY") current.title = unescapeICSText(rawValue);
+    else if (key === "DESCRIPTION") current.notes = unescapeICSText(rawValue);
+    else if (key === "DTSTART") {
+      const parsed = parseICSDate(rawKey, rawValue);
+      current.date = parsed.date;
+      current.time = parsed.time;
+      current.allDay = parsed.allDay;
+    } else if (key === "DTEND") {
+      const parsed = parseICSDate(rawKey, rawValue);
+      current.endTime = parsed.time;
+    } else if (key === "RRULE") {
+      current.rrule = rawValue;
+    }
+  }
+  return events.filter((e) => e.date);
+}
+
 function EventRow({ e, onRemove, onEdit, onEditBirthday }) {
   const c = e.isBirthday ? BIRTHDAY_COLOR : OWNER_COLORS[e.owner] || OWNER_COLORS.Samen;
   return (
@@ -528,6 +623,12 @@ export default function HuishoudApp() {
   const [editingBirthdayId, setEditingBirthdayId] = useState(null);
   const [agendaView, setAgendaView] = useState("week");
   const [cursorDate, setCursorDate] = useState(toISO(new Date()));
+  const [showImport, setShowImport] = useState(false);
+  const [importParsed, setImportParsed] = useState([]);
+  const [importSelected, setImportSelected] = useState({});
+  const [importOwner, setImportOwner] = useState("Emily");
+  const [importFileName, setImportFileName] = useState("");
+  const fileInputRef = useRef(null);
   const [selectedDay, setSelectedDay] = useState(toISO(new Date()));
 
   const lastSyncRef = useRef(null);
@@ -902,6 +1003,60 @@ export default function HuishoudApp() {
     setShowAddEvent(false);
     setEditingId(null);
     setEditingBirthdayId(null);
+  };
+
+  const handleICSFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setImportFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = parseICS(String(reader.result || ""));
+        setImportParsed(parsed);
+        const selected = {};
+        parsed.forEach((_, i) => (selected[i] = true));
+        setImportSelected(selected);
+        setShowImport(true);
+      } catch (err) {
+        console.error("ICS-import mislukt", err);
+        alert("Kon dit .ics-bestand niet lezen. Controleer of het een geldig agenda-exportbestand is.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const confirmImport = () => {
+    const toAdd = importParsed
+      .filter((_, i) => importSelected[i])
+      .map((ev) => ({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        title: ev.title,
+        date: ev.date,
+        time: ev.time,
+        endTime: ev.endTime,
+        allDay: ev.allDay,
+        notes: ev.notes,
+        repeat: ev.repeat,
+        owner: importOwner,
+      }));
+    if (toAdd.length === 0) {
+      setShowImport(false);
+      return;
+    }
+    save({ ...data, events: [...(data.events || []), ...toAdd] });
+    setShowImport(false);
+    setImportParsed([]);
+    setImportSelected({});
+    setImportFileName("");
+  };
+
+  const cancelImport = () => {
+    setShowImport(false);
+    setImportParsed([]);
+    setImportSelected({});
+    setImportFileName("");
   };
 
   if (session === undefined) {
@@ -2249,6 +2404,19 @@ export default function HuishoudApp() {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <button
+                  onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                  style={{ fontFamily: FONT_BODY, fontSize: 12, fontWeight: 600, color: "#8A96A3", background: "none", border: "none", cursor: "pointer" }}
+                >
+                  Importeren
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".ics,text/calendar"
+                  onChange={handleICSFile}
+                  style={{ display: "none" }}
+                />
+                <button
                   onClick={goToday}
                   style={{ fontFamily: FONT_BODY, fontSize: 12, fontWeight: 600, color: theme.bg, background: "none", border: "none", cursor: "pointer" }}
                 >
@@ -2834,7 +3002,126 @@ export default function HuishoudApp() {
             </div>
           );
         })()}
+
+      {showImport && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "#F4F6F8",
+            display: "flex",
+            flexDirection: "column",
+            zIndex: 30,
+          }}
+        >
+          <div style={{ padding: "20px 18px 12px", borderBottom: "1px solid #EDEFF2", background: "#fff" }}>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 18, color: "#0F2A4A", marginBottom: 4 }}>
+              Agenda importeren
+            </div>
+            <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3" }}>
+              {importFileName} · {importParsed.length} afspraken gevonden
+            </div>
+          </div>
+
+          <div style={{ padding: "12px 18px", background: "#fff", borderBottom: "1px solid #EDEFF2" }}>
+            <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 6 }}>
+              Toewijzen aan
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {["Emile", "Emily", "Samen"].map((o) => {
+                const c = OWNER_COLORS[o];
+                const active = importOwner === o;
+                return (
+                  <button
+                    key={o}
+                    onClick={() => setImportOwner(o)}
+                    style={{
+                      fontFamily: FONT_BODY,
+                      fontWeight: 600,
+                      fontSize: 12,
+                      padding: "7px 12px",
+                      borderRadius: 999,
+                      border: active ? "none" : "1px solid #D8DEE6",
+                      background: active ? c.bg : "#fff",
+                      color: active ? c.text : "#5C6B7A",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {o}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ flex: 1, overflowY: "auto", padding: "12px 18px" }}>
+            {importParsed.length === 0 ? (
+              <div style={{ fontFamily: FONT_BODY, color: "#A6AEB8", fontSize: 14, padding: "24px 4px" }}>
+                Geen afspraken gevonden in dit bestand.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {importParsed.map((ev, i) => (
+                  <label
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      background: "#fff",
+                      borderRadius: 12,
+                      padding: "10px 12px",
+                      border: "1px solid #EDEFF2",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <button
+                      onClick={() => setImportSelected({ ...importSelected, [i]: !importSelected[i] })}
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 6,
+                        border: importSelected[i] ? "none" : "2px solid #C7CFD8",
+                        background: importSelected[i] ? theme.bg : "transparent",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                        marginTop: 1,
+                      }}
+                    >
+                      {importSelected[i] && <Check size={13} color="#fff" strokeWidth={3} />}
+                    </button>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: FONT_BODY, fontSize: 14, color: "#1E2A38", fontWeight: 500 }}>{ev.title}</div>
+                      <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", marginTop: 2 }}>
+                        {dayLabel(ev.date)}
+                        {ev.allDay ? " · hele dag" : ev.time ? ` · ${ev.time}` : ""}
+                        {ev.repeat !== "none" ? ` · ${REPEAT_LABELS[ev.repeat]}` : ""}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ padding: "12px 18px 20px", background: "#fff", borderTop: "1px solid #EDEFF2", display: "flex", gap: 8 }}>
+            <button
+              onClick={confirmImport}
+              style={{ ...smallBtn, background: theme.bg, flex: 1 }}
+            >
+              {Object.values(importSelected).filter(Boolean).length} afspraken importeren
+            </button>
+            <button onClick={cancelImport} style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6" }}>
+              Annuleren
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 }
 
