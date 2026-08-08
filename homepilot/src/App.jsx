@@ -338,7 +338,7 @@ function parseICS(text) {
   return events.filter((e) => e.date);
 }
 
-function EventRow({ e, onRemove, onEdit, onEditBirthday }) {
+function EventRow({ e, onRemove, onEdit, onEditBirthday, onRequestRemove }) {
   const c = e.isBirthday ? BIRTHDAY_COLOR : OWNER_COLORS[e.owner] || OWNER_COLORS.Samen;
   return (
     <div
@@ -385,6 +385,8 @@ function EventRow({ e, onRemove, onEdit, onEditBirthday }) {
             ev.stopPropagation();
             if (e.isRecurringInstance || e.isSpanInstance) {
               onEdit(e);
+            } else if (onRequestRemove) {
+              onRequestRemove(e);
             } else {
               onRemove(e.id);
             }
@@ -581,7 +583,7 @@ function QtyStepper({ qty, onChange, size = "sm" }) {
   );
 }
 
-function DayList({ dateISO, items, onRemove, onEdit, onEditBirthday }) {
+function DayList({ dateISO, items, onRemove, onEdit, onEditBirthday, onRequestRemove }) {
   return (
     <div>
       <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
@@ -592,7 +594,7 @@ function DayList({ dateISO, items, onRemove, onEdit, onEditBirthday }) {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {items.map((e) => (
-            <EventRow key={e.id} e={e} onRemove={onRemove} onEdit={onEdit} onEditBirthday={onEditBirthday} />
+            <EventRow key={e.id} e={e} onRemove={onRemove} onEdit={onEdit} onEditBirthday={onEditBirthday} onRequestRemove={onRequestRemove} />
           ))}
         </div>
       )}
@@ -636,6 +638,7 @@ export default function HuishoudApp() {
   const [newEvent, setNewEvent] = useState({ title: "", date: "", endDate: "", time: "", endTime: "", allDay: false, notes: "", owner: "Samen", repeat: "none" });
   const [editingId, setEditingId] = useState(null);
   const [deleteTargetDate, setDeleteTargetDate] = useState("");
+  const [confirmRemoveEvent, setConfirmRemoveEvent] = useState(null);
   const [confirmDeleteChoice, setConfirmDeleteChoice] = useState(false);
   const [newBirthday, setNewBirthday] = useState({ name: "", day: "", month: "", year: "" });
   const [editingBirthdayId, setEditingBirthdayId] = useState(null);
@@ -936,6 +939,14 @@ export default function HuishoudApp() {
       setShowAddEvent(false);
       setConfirmDeleteChoice(false);
     }
+  };
+
+  const requestRemoveEvent = (e) => setConfirmRemoveEvent(e);
+
+  const confirmRemoveNow = () => {
+    if (!confirmRemoveEvent) return;
+    removeEvent(confirmRemoveEvent.id);
+    setConfirmRemoveEvent(null);
   };
 
   const removeEventOccurrence = (id, dateToExclude) => {
@@ -2484,6 +2495,7 @@ export default function HuishoudApp() {
                     onRemove={removeEvent}
                     onEdit={openEditEvent}
                     onEditBirthday={openEditBirthday}
+                    onRequestRemove={requestRemoveEvent}
                     onAdd={() => openAddEvent(cursorDate)}
                   />
                 )}
@@ -2507,7 +2519,7 @@ export default function HuishoudApp() {
                       ) : (
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                           {getDayItems(iso).map((e) => (
-                            <EventRow key={e.id} e={e} onRemove={removeEvent} onEdit={openEditEvent} onEditBirthday={openEditBirthday} />
+                            <EventRow key={e.id} e={e} onRemove={removeEvent} onEdit={openEditEvent} onEditBirthday={openEditBirthday} onRequestRemove={requestRemoveEvent} />
                           ))}
                         </div>
                       )}
@@ -2596,6 +2608,7 @@ export default function HuishoudApp() {
                         onRemove={removeEvent}
                         onEdit={openEditEvent}
                         onEditBirthday={openEditBirthday}
+                        onRequestRemove={requestRemoveEvent}
                         onAdd={() => openAddEvent(selectedDay)}
                       />
                     </div>
@@ -3214,6 +3227,45 @@ export default function HuishoudApp() {
             <button onClick={cancelImport} style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6" }}>
               Annuleren
             </button>
+          </div>
+        </div>
+      )}
+
+      {confirmRemoveEvent && (
+        <div
+          onClick={() => setConfirmRemoveEvent(null)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(15,42,74,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 40,
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={(ev) => ev.stopPropagation()}
+            style={{ background: "#fff", borderRadius: 16, padding: 20, width: "100%", maxWidth: 320, boxShadow: "0 12px 40px rgba(15,42,74,0.3)" }}
+          >
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 17, color: "#0F2A4A", marginBottom: 6 }}>
+              Afspraak verwijderen?
+            </div>
+            <div style={{ fontFamily: FONT_BODY, fontSize: 14, color: "#5C6B7A", marginBottom: 18 }}>
+              Weet je zeker dat je "{confirmRemoveEvent.title}" wilt verwijderen?
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={confirmRemoveNow} style={{ ...smallBtn, background: "#C8272A", flex: 1 }}>
+                Verwijderen
+              </button>
+              <button
+                onClick={() => setConfirmRemoveEvent(null)}
+                style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6", flex: 1 }}
+              >
+                Annuleren
+              </button>
+            </div>
           </div>
         </div>
       )}
