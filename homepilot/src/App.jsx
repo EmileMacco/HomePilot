@@ -291,6 +291,80 @@ function mapRRuleToRepeat(rrule) {
   return "none";
 }
 
+function looksLikeBirthday(title, rrule) {
+  const isYearly = /FREQ=YEARLY/.test(rrule || "");
+  const titleMatch = /verjaardag|birthday/i.test(title || "");
+  return isYearly || titleMatch;
+}
+
+function extractBirthdayName(title) {
+  let t = (title || "").trim();
+  t = t.replace(/[’']s\s+birthday$/i, "");
+  t = t.replace(/^verjaardag\s+van\s+/i, "");
+  t = t.replace(/\s*verjaardag$/i, "");
+  t = t.replace(/\s*\(\d+(st|nd|rd|th)?\)\s*$/i, "");
+  t = t.trim();
+  return t || title;
+}
+
+function parseVCardBday(raw) {
+  let s = (raw || "").trim().split(";")[0];
+  let noYear = false;
+  if (s.startsWith("--")) {
+    noYear = true;
+    s = s.slice(2);
+  }
+  s = s.replace(/-/g, "");
+  if (noYear) {
+    if (s.length < 4) return null;
+    return { year: null, month: Number(s.slice(0, 2)), day: Number(s.slice(2, 4)) };
+  }
+  if (s.length < 8) return null;
+  return { year: Number(s.slice(0, 4)), month: Number(s.slice(4, 6)), day: Number(s.slice(6, 8)) };
+}
+
+function parseVCard(text) {
+  const lines = unfoldICS(text);
+  const results = [];
+  let current = null;
+  for (const line of lines) {
+    if (line.startsWith("BEGIN:VCARD")) {
+      current = {};
+      continue;
+    }
+    if (line.startsWith("END:VCARD")) {
+      if (current && current.name && current.bday) {
+        const y = current.bday.year;
+        const dateY = y && y >= 1900 && y <= new Date().getFullYear() ? y : 1604;
+        const date = `${dateY}-${pad2(current.bday.month)}-${pad2(current.bday.day)}`;
+        results.push({
+          title: current.name,
+          date,
+          time: "",
+          endTime: "",
+          allDay: true,
+          notes: "",
+          repeat: "none",
+          isBirthdayLike: true,
+          noYearKnown: !y,
+        });
+      }
+      current = null;
+      continue;
+    }
+    if (!current) continue;
+    const sepIndex = line.indexOf(":");
+    if (sepIndex === -1) continue;
+    const rawKey = line.slice(0, sepIndex);
+    const rawValue = line.slice(sepIndex + 1);
+    const key = rawKey.split(";")[0];
+    if (key === "FN") current.name = unescapeICSText(rawValue);
+    else if (key === "N" && !current.name) current.name = unescapeICSText(rawValue.split(";").filter(Boolean).reverse().join(" "));
+    else if (key === "BDAY") current.bday = parseVCardBday(rawValue);
+  }
+  return results.filter((e) => e.date);
+}
+
 function parseICS(text) {
   const lines = unfoldICS(text);
   const events = [];
@@ -310,6 +384,7 @@ function parseICS(text) {
           allDay: !!current.allDay,
           notes: current.notes || "",
           repeat: mapRRuleToRepeat(current.rrule),
+          isBirthdayLike: looksLikeBirthday(current.title, current.rrule),
         });
       }
       current = null;
@@ -647,6 +722,7 @@ export default function HuishoudApp() {
   const [showImport, setShowImport] = useState(false);
   const [importParsed, setImportParsed] = useState([]);
   const [importSelected, setImportSelected] = useState({});
+  const [importAsType, setImportAsType] = useState({});
   const [importOwner, setImportOwner] = useState("Samen");
   const [importFileName, setImportFileName] = useState("");
   const fileInputRef = useRef(null);
@@ -1065,11 +1141,18 @@ export default function HuishoudApp() {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const parsed = parseICS(String(reader.result || ""));
+        const text = String(reader.result || "");
+        const isVCard = /BEGIN:VCARD/i.test(text) && !/BEGIN:VCALENDAR/i.test(text);
+        const parsed = isVCard ? parseVCard(text) : parseICS(text);
         setImportParsed(parsed);
         const selected = {};
-        parsed.forEach((_, i) => (selected[i] = true));
+        const asType = {};
+        parsed.forEach((ev, i) => {
+          selected[i] = true;
+          asType[i] = ev.isBirthdayLike ? "verjaardag" : "afspraak";
+        });
         setImportSelected(selected);
+        setImportAsType(asType);
         setShowImport(true);
       } catch (err) {
         console.error("ICS-import mislukt", err);
@@ -1081,27 +1164,49 @@ export default function HuishoudApp() {
   };
 
   const confirmImport = () => {
-    const toAdd = importParsed
-      .filter((_, i) => importSelected[i])
-      .map((ev) => ({
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        title: ev.title,
-        date: ev.date,
-        time: ev.time,
-        endTime: ev.endTime,
-        allDay: ev.allDay,
-        notes: ev.notes,
-        repeat: ev.repeat,
-        owner: importOwner,
-      }));
-    if (toAdd.length === 0) {
+    const toAddEvents = [];
+    const toAddBirthdays = [];
+    importParsed.forEach((ev, i) => {
+      if (!importSelected[i]) return;
+      if (importAsType[i] === "verjaardag") {
+        const y = Number(ev.date.slice(0, 4));
+        const m = Number(ev.date.slice(5, 7));
+        const d = Number(ev.date.slice(8, 10));
+        const plausibleYear = y >= 1900 && y <= new Date().getFullYear() && y !== 1604;
+        toAddBirthdays.push({
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          name: extractBirthdayName(ev.title),
+          day: d,
+          month: m,
+          year: plausibleYear ? y : null,
+        });
+      } else {
+        toAddEvents.push({
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          title: ev.title,
+          date: ev.date,
+          time: ev.time,
+          endTime: ev.endTime,
+          allDay: ev.allDay,
+          notes: ev.notes,
+          repeat: ev.repeat,
+          owner: importOwner,
+        });
+      }
+    });
+    if (toAddEvents.length === 0 && toAddBirthdays.length === 0) {
       setShowImport(false);
       return;
     }
-    save({ ...data, events: [...(data.events || []), ...toAdd] });
+    save({
+      ...data,
+      events: [...(data.events || []), ...toAddEvents],
+      birthdays: [...(data.birthdays || []), ...toAddBirthdays],
+    });
     setShowImport(false);
     setImportParsed([]);
     setImportSelected({});
+    setImportAsType({});
     setImportFileName("");
   };
 
@@ -1109,6 +1214,7 @@ export default function HuishoudApp() {
     setShowImport(false);
     setImportParsed([]);
     setImportSelected({});
+    setImportAsType({});
     setImportFileName("");
   };
 
@@ -2467,7 +2573,7 @@ export default function HuishoudApp() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".ics,text/calendar"
+                  accept=".ics,.vcf,text/calendar,text/vcard,text/x-vcard"
                   onChange={handleICSFile}
                   style={{ display: "none" }}
                 />
@@ -3129,7 +3235,7 @@ export default function HuishoudApp() {
               Agenda importeren
             </div>
             <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3" }}>
-              {importFileName} · {importParsed.length} afspraken gevonden
+              {importFileName} · {importParsed.length} items gevonden
             </div>
           </div>
 
@@ -3172,7 +3278,7 @@ export default function HuishoudApp() {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {importParsed.map((ev, i) => (
-                  <label
+                  <div
                     key={i}
                     style={{
                       display: "flex",
@@ -3182,7 +3288,6 @@ export default function HuishoudApp() {
                       borderRadius: 12,
                       padding: "10px 12px",
                       border: "1px solid #EDEFF2",
-                      cursor: "pointer",
                     }}
                   >
                     <button
@@ -3206,12 +3311,41 @@ export default function HuishoudApp() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: FONT_BODY, fontSize: 14, color: "#1E2A38", fontWeight: 500 }}>{ev.title}</div>
                       <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", marginTop: 2 }}>
-                        {dayLabel(ev.date)}
+                        {ev.date.startsWith("1604-")
+                          ? `${Number(ev.date.slice(8, 10))} ${MONTHS_FULL[Number(ev.date.slice(5, 7)) - 1]}`
+                          : dayLabel(ev.date)}
                         {ev.allDay ? " · hele dag" : ev.time ? ` · ${ev.time}` : ""}
                         {ev.repeat !== "none" ? ` · ${REPEAT_LABELS[ev.repeat]}` : ""}
                       </div>
+                      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                        {[
+                          { key: "afspraak", label: "Afspraak" },
+                          { key: "verjaardag", label: "Verjaardag" },
+                        ].map((t) => {
+                          const active = importAsType[i] === t.key;
+                          return (
+                            <button
+                              key={t.key}
+                              onClick={() => setImportAsType({ ...importAsType, [i]: t.key })}
+                              style={{
+                                fontFamily: FONT_BODY,
+                                fontWeight: 600,
+                                fontSize: 11,
+                                padding: "3px 9px",
+                                borderRadius: 999,
+                                border: active ? "none" : "1px solid #D8DEE6",
+                                background: active ? (t.key === "verjaardag" ? BIRTHDAY_COLOR.bg : theme.bg) : "#fff",
+                                color: active ? "#fff" : "#8A96A3",
+                                cursor: "pointer",
+                              }}
+                            >
+                              {t.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </label>
+                  </div>
                 ))}
               </div>
             )}
@@ -3222,7 +3356,7 @@ export default function HuishoudApp() {
               onClick={confirmImport}
               style={{ ...smallBtn, background: theme.bg, flex: 1 }}
             >
-              {Object.values(importSelected).filter(Boolean).length} afspraken importeren
+              {Object.values(importSelected).filter(Boolean).length} items importeren
             </button>
             <button onClick={cancelImport} style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6" }}>
               Annuleren
