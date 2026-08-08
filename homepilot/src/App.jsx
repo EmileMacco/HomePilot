@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 const HOUSEHOLD_ID = "homepilot";
+const HOUSEHOLD_EMAIL = "household@homepilot.app";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -533,7 +534,35 @@ export default function HuishoudApp() {
   const [syncStatus, setSyncStatus] = useState("ok");
   const [syncErrorDetail, setSyncErrorDetail] = useState("");
 
+  const [session, setSession] = useState(undefined);
+  const [pwInput, setPwInput] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+
   useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  const handleLogin = async () => {
+    setAuthLoading(true);
+    setAuthError("");
+    const { error } = await supabase.auth.signInWithPassword({ email: HOUSEHOLD_EMAIL, password: pwInput });
+    if (error) setAuthError("Wachtwoord onjuist.");
+    setAuthLoading(false);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    try {
+      localStorage.removeItem("homepilot-current-user");
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    if (!session) return;
     try {
       const name = localStorage.getItem("homepilot-current-user");
       if (name) {
@@ -562,9 +591,10 @@ export default function HuishoudApp() {
       }
       setLoading(false);
     })();
-  }, []);
+  }, [session]);
 
   useEffect(() => {
+    if (!session) return;
     const channel = supabase
       .channel("household-changes")
       .on(
@@ -588,7 +618,7 @@ export default function HuishoudApp() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [session]);
 
   const save = useCallback(async (next) => {
     setData(next);
@@ -874,6 +904,55 @@ export default function HuishoudApp() {
     setEditingBirthdayId(null);
   };
 
+  if (session === undefined) {
+    return (
+      <div style={{ ...shell, alignItems: "center", justifyContent: "center" }}>
+        <Loader2 size={28} color="#0F2A4A" className="spin" />
+        <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div style={{ ...shell, alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 26, color: "#0F2A4A", marginBottom: 4 }}>
+          HomePilot
+        </div>
+        <div style={{ fontFamily: FONT_BODY, fontSize: 14, color: "#5C6B7A", marginBottom: 24 }}>
+          Voer het huishoud-wachtwoord in
+        </div>
+        <input
+          type="password"
+          value={pwInput}
+          onChange={(e) => setPwInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && !authLoading && handleLogin()}
+          placeholder="Wachtwoord"
+          autoFocus
+          style={{ ...inputStyle, width: 240, textAlign: "center", fontSize: 16, marginBottom: 12 }}
+        />
+        {authError && (
+          <div style={{ fontFamily: FONT_BODY, fontSize: 13, color: "#C8272A", marginBottom: 12 }}>
+            {authError}
+          </div>
+        )}
+        <button
+          onClick={handleLogin}
+          disabled={authLoading || !pwInput}
+          style={{
+            ...smallBtn,
+            background: "#0F2A4A",
+            width: 240,
+            opacity: authLoading || !pwInput ? 0.6 : 1,
+            cursor: authLoading || !pwInput ? "not-allowed" : "pointer",
+          }}
+        >
+          {authLoading ? "Bezig..." : "Inloggen"}
+        </button>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div style={{ ...shell, alignItems: "center", justifyContent: "center" }}>
@@ -966,25 +1045,45 @@ export default function HuishoudApp() {
             HomePilot
           </div>
         </div>
-        <button
-          onClick={() => chooseUser(user === "Emile" ? "Emily" : "Emile")}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            background: "rgba(255,255,255,0.12)",
-            border: "1px solid rgba(255,255,255,0.25)",
-            borderRadius: 20,
-            padding: "6px 12px",
-            color: "#fff",
-            fontFamily: FONT_BODY,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          <User size={13} /> {user}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            onClick={() => chooseUser(user === "Emile" ? "Emily" : "Emile")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "rgba(255,255,255,0.12)",
+              border: "1px solid rgba(255,255,255,0.25)",
+              borderRadius: 20,
+              padding: "6px 12px",
+              color: "#fff",
+              fontFamily: FONT_BODY,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            <User size={13} /> {user}
+          </button>
+          <button
+            onClick={handleLogout}
+            title="Uitloggen"
+            style={{
+              background: "rgba(255,255,255,0.12)",
+              border: "1px solid rgba(255,255,255,0.25)",
+              borderRadius: 20,
+              width: 28,
+              height: 28,
+              color: "#fff",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <X size={13} />
+          </button>
+        </div>
       </div>
 
       {syncStatus === "error" && (
