@@ -314,67 +314,6 @@ function extractBirthdayName(title) {
   return t || title;
 }
 
-function easterSunday(year) {
-  const a = year % 19;
-  const b = Math.floor(year / 100);
-  const c = year % 100;
-  const d = Math.floor(b / 4);
-  const e = b % 4;
-  const f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3);
-  const h = (19 * a + b - d - g + 15) % 30;
-  const i = Math.floor(c / 4);
-  const k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7;
-  const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const month = Math.floor((h + l - 7 * m + 114) / 31);
-  const day = ((h + l - 7 * m + 114) % 31) + 1;
-  return new Date(year, month - 1, day);
-}
-
-function nthWeekdayOfMonth(year, month, weekday, n) {
-  const first = new Date(year, month, 1);
-  const day = 1 + ((weekday - first.getDay() + 7) % 7) + (n - 1) * 7;
-  return new Date(year, month, day);
-}
-
-function dutchHolidaysForYear(year) {
-  const easter = easterSunday(year);
-  let koningsdag = new Date(year, 3, 27);
-  if (koningsdag.getDay() === 0) koningsdag = new Date(year, 3, 26);
-  const list = [
-    { title: "Nieuwjaarsdag", date: new Date(year, 0, 1) },
-    { title: "Valentijnsdag", date: new Date(year, 1, 14) },
-    { title: "Goede Vrijdag", date: addDays(easter, -2) },
-    { title: "Eerste Paasdag", date: easter },
-    { title: "Tweede Paasdag", date: addDays(easter, 1) },
-    { title: "Koningsdag", date: koningsdag },
-    { title: "Dodenherdenking", date: new Date(year, 4, 4) },
-    { title: "Bevrijdingsdag", date: new Date(year, 4, 5) },
-    { title: "Moederdag", date: nthWeekdayOfMonth(year, 4, 0, 2) },
-    { title: "Hemelvaartsdag", date: addDays(easter, 39) },
-    { title: "Eerste Pinksterdag", date: addDays(easter, 49) },
-    { title: "Tweede Pinksterdag", date: addDays(easter, 50) },
-    { title: "Vaderdag", date: nthWeekdayOfMonth(year, 5, 0, 3) },
-    { title: "Halloween", date: new Date(year, 9, 31) },
-    { title: "Sinterklaas", date: new Date(year, 11, 5) },
-    { title: "Eerste Kerstdag", date: new Date(year, 11, 25) },
-    { title: "Tweede Kerstdag", date: new Date(year, 11, 26) },
-    { title: "Oudejaarsdag", date: new Date(year, 11, 31) },
-  ];
-  return list.map((h) => ({
-    title: h.title,
-    date: toISO(h.date),
-    time: "",
-    endTime: "",
-    allDay: true,
-    notes: "",
-    repeat: "none",
-    isBirthdayLike: false,
-    isHoliday: true,
-  }));
-}
-
 function parseVCardBday(raw) {
   let s = (raw || "").trim().split(";")[0];
   let noYear = false;
@@ -1339,30 +1278,6 @@ export default function HuishoudApp() {
     setImportSelected({});
     setImportAsType({});
     setImportFileName("");
-  };
-
-  const addDutchHolidays = () => {
-    const nowY = new Date().getFullYear();
-    const years = [nowY, nowY + 1, nowY + 2];
-    const existingKeys = new Set((data.events || []).map((e) => `${e.title}|${e.date}`));
-    const list = years.flatMap((y) => dutchHolidaysForYear(y)).filter((h) => !existingKeys.has(`${h.title}|${h.date}`));
-    if (list.length === 0) {
-      alert("Alle feestdagen staan al in je agenda (t/m " + years[years.length - 1] + ").");
-      return;
-    }
-    setImportMode("holidays");
-    setImportParsed(list);
-    setImportFileName(`Feestdagen ${years[0]}–${years[years.length - 1]}`);
-    const selected = {};
-    const asType = {};
-    list.forEach((_, i) => {
-      selected[i] = true;
-      asType[i] = "afspraak";
-    });
-    setImportSelected(selected);
-    setImportAsType(asType);
-    setImportOwner("Samen");
-    setShowImport(true);
   };
 
   if (session === undefined) {
@@ -2755,12 +2670,6 @@ export default function HuishoudApp() {
                 ))}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                <button
-                  onClick={addDutchHolidays}
-                  style={{ fontFamily: FONT_BODY, fontSize: 12, fontWeight: 600, color: "#8A96A3", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
-                >
-                  Feestdagen
-                </button>
                 <button
                   onClick={() => fileInputRef.current && fileInputRef.current.click()}
                   style={{ fontFamily: FONT_BODY, fontSize: 12, fontWeight: 600, color: "#8A96A3", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
