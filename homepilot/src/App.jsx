@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ShoppingCart, CreditCard, Plus, X, Check, Store, User, Loader2, Trash2, Calendar, Home, ListChecks } from "lucide-react";
+import { ShoppingCart, CreditCard, Plus, X, Check, Store, User, Loader2, Trash2, Calendar, Home, ListChecks, Star } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -748,7 +748,7 @@ function shade(hex, percent) {
 export default function HuishoudApp() {
   const [tab, setTab] = useState("home");
   const [user, setUser] = useState(null);
-  const [data, setData] = useState({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {} });
+  const [data, setData] = useState({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {} });
   const [activeStore, setActiveStore] = useState(DEFAULT_STORES[0]);
   const [loading, setLoading] = useState(true);
   const [newItem, setNewItem] = useState("");
@@ -834,7 +834,7 @@ export default function HuishoudApp() {
         const row = await fetchHousehold();
         if (row) {
           const parsed = row.data || {};
-          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, ...parsed });
+          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, ...parsed });
           if (parsed.stores?.length) setActiveStore(parsed.stores[0]);
           lastSyncRef.current = row.updated_at;
           setSyncStatus("ok");
@@ -862,7 +862,7 @@ export default function HuishoudApp() {
           const row = payload.new;
           if (!row || row.updated_at === lastSyncRef.current) return;
           const parsed = row.data || {};
-          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, ...parsed });
+          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, ...parsed });
           lastSyncRef.current = row.updated_at;
         }
       )
@@ -930,6 +930,33 @@ export default function HuishoudApp() {
     if (!it) return;
     const next = Math.max(1, (it.qty || 1) + delta);
     updateItem(store, id, { qty: next });
+  };
+
+  const isFavorite = (store, text) =>
+    (data.favorites?.[store] || []).some((f) => f.toLowerCase() === text.toLowerCase());
+
+  const toggleFavorite = (store, text) => {
+    const current = data.favorites?.[store] || [];
+    const exists = current.some((f) => f.toLowerCase() === text.toLowerCase());
+    const next = exists ? current.filter((f) => f.toLowerCase() !== text.toLowerCase()) : [...current, text];
+    save({ ...data, favorites: { ...data.favorites, [store]: next } });
+  };
+
+  const removeFavorite = (store, text) => {
+    const current = data.favorites?.[store] || [];
+    save({ ...data, favorites: { ...data.favorites, [store]: current.filter((f) => f !== text) } });
+  };
+
+  const addFromFavorite = (store, text) => {
+    const list = data.lists[store] || [];
+    const existing = list.find((it) => !it.done && it.text.toLowerCase() === text.toLowerCase());
+    let nextList;
+    if (existing) {
+      nextList = list.map((it) => (it.id === existing.id ? { ...it, qty: (it.qty || 1) + 1 } : it));
+    } else {
+      nextList = [...list, { id: Date.now().toString(36), text, done: false, addedBy: user, qty: 1 }];
+    }
+    save({ ...data, lists: { ...data.lists, [store]: nextList } });
   };
 
   const openEditItem = (store, it) => {
@@ -1863,6 +1890,47 @@ export default function HuishoudApp() {
               </div>
             )}
 
+            {(data.favorites?.[activeStore] || []).length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, marginBottom: 6 }}>
+                  FAVORIETEN
+                </div>
+                <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
+                  {data.favorites[activeStore].map((fav) => (
+                    <button
+                      key={fav}
+                      onClick={() => addFromFavorite(activeStore, fav)}
+                      style={{
+                        flexShrink: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        background: "#FFF9EC",
+                        border: `1px solid ${BIRTHDAY_COLOR.bg}55`,
+                        borderRadius: 999,
+                        padding: "6px 10px",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <Star size={12} color={BIRTHDAY_COLOR.bg} fill={BIRTHDAY_COLOR.bg} />
+                      <span style={{ fontFamily: FONT_BODY, fontSize: 13, color: "#1E2A38", fontWeight: 500 }}>{fav}</span>
+                      <span
+                        role="button"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          removeFavorite(activeStore, fav);
+                        }}
+                        style={{ display: "flex", alignItems: "center", color: "#C7CFD8" }}
+                      >
+                        <X size={12} />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3 }}>
                 {openCount === 0 ? "NIETS MEER NODIG" : `${openCount} OP DE LIJST`}
@@ -2038,6 +2106,19 @@ export default function HuishoudApp() {
                       <button
                         onClick={(ev) => {
                           ev.stopPropagation();
+                          toggleFavorite(activeStore, it.text);
+                        }}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: 4, flexShrink: 0, display: "flex" }}
+                      >
+                        <Star
+                          size={16}
+                          color={isFavorite(activeStore, it.text) ? BIRTHDAY_COLOR.bg : "#C7CFD8"}
+                          fill={isFavorite(activeStore, it.text) ? BIRTHDAY_COLOR.bg : "none"}
+                        />
+                      </button>
+                      <button
+                        onClick={(ev) => {
+                          ev.stopPropagation();
                           removeItem(it.id);
                         }}
                         style={{ background: "none", border: "none", color: "#C7CFD8", cursor: "pointer", padding: 4, flexShrink: 0 }}
@@ -2138,6 +2219,19 @@ export default function HuishoudApp() {
                               {it.validTo ? ` · t/m ${dayLabel(it.validTo)}` : ""}
                             </div>
                           </div>
+                          <button
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              toggleFavorite(activeStore, it.text);
+                            }}
+                            style={{ background: "none", border: "none", cursor: "pointer", padding: 4, flexShrink: 0, display: "flex" }}
+                          >
+                            <Star
+                              size={16}
+                              color={isFavorite(activeStore, it.text) ? BIRTHDAY_COLOR.bg : "#C7CFD8"}
+                              fill={isFavorite(activeStore, it.text) ? BIRTHDAY_COLOR.bg : "none"}
+                            />
+                          </button>
                           <button
                             onClick={(ev) => {
                               ev.stopPropagation();
