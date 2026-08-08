@@ -332,22 +332,35 @@ function easterSunday(year) {
   return new Date(year, month - 1, day);
 }
 
+function nthWeekdayOfMonth(year, month, weekday, n) {
+  const first = new Date(year, month, 1);
+  const day = 1 + ((weekday - first.getDay() + 7) % 7) + (n - 1) * 7;
+  return new Date(year, month, day);
+}
+
 function dutchHolidaysForYear(year) {
   const easter = easterSunday(year);
   let koningsdag = new Date(year, 3, 27);
   if (koningsdag.getDay() === 0) koningsdag = new Date(year, 3, 26);
   const list = [
     { title: "Nieuwjaarsdag", date: new Date(year, 0, 1) },
+    { title: "Valentijnsdag", date: new Date(year, 1, 14) },
     { title: "Goede Vrijdag", date: addDays(easter, -2) },
     { title: "Eerste Paasdag", date: easter },
     { title: "Tweede Paasdag", date: addDays(easter, 1) },
     { title: "Koningsdag", date: koningsdag },
+    { title: "Dodenherdenking", date: new Date(year, 4, 4) },
     { title: "Bevrijdingsdag", date: new Date(year, 4, 5) },
+    { title: "Moederdag", date: nthWeekdayOfMonth(year, 4, 0, 2) },
     { title: "Hemelvaartsdag", date: addDays(easter, 39) },
     { title: "Eerste Pinksterdag", date: addDays(easter, 49) },
     { title: "Tweede Pinksterdag", date: addDays(easter, 50) },
+    { title: "Vaderdag", date: nthWeekdayOfMonth(year, 5, 0, 3) },
+    { title: "Halloween", date: new Date(year, 9, 31) },
+    { title: "Sinterklaas", date: new Date(year, 11, 5) },
     { title: "Eerste Kerstdag", date: new Date(year, 11, 25) },
     { title: "Tweede Kerstdag", date: new Date(year, 11, 26) },
+    { title: "Oudejaarsdag", date: new Date(year, 11, 31) },
   ];
   return list.map((h) => ({
     title: h.title,
@@ -830,6 +843,7 @@ export default function HuishoudApp() {
   const [importParsed, setImportParsed] = useState([]);
   const [importSelected, setImportSelected] = useState({});
   const [importAsType, setImportAsType] = useState({});
+  const [importMode, setImportMode] = useState("file");
   const [importOwner, setImportOwner] = useState("Samen");
   const [importFileName, setImportFileName] = useState("");
   const fileInputRef = useRef(null);
@@ -1245,6 +1259,7 @@ export default function HuishoudApp() {
     if (!file) return;
     setImportFileName(file.name);
     setImportOwner(user || "Samen");
+    setImportMode("file");
     const reader = new FileReader();
     reader.onload = () => {
       try {
@@ -1328,10 +1343,16 @@ export default function HuishoudApp() {
 
   const addDutchHolidays = () => {
     const nowY = new Date().getFullYear();
-    const years = [nowY, nowY + 1];
-    const list = years.flatMap((y) => dutchHolidaysForYear(y));
+    const years = [nowY, nowY + 1, nowY + 2];
+    const existingKeys = new Set((data.events || []).map((e) => `${e.title}|${e.date}`));
+    const list = years.flatMap((y) => dutchHolidaysForYear(y)).filter((h) => !existingKeys.has(`${h.title}|${h.date}`));
+    if (list.length === 0) {
+      alert("Alle feestdagen staan al in je agenda (t/m " + years[years.length - 1] + ").");
+      return;
+    }
+    setImportMode("holidays");
     setImportParsed(list);
-    setImportFileName(`Nederlandse feestdagen ${years[0]}–${years[years.length - 1]}`);
+    setImportFileName(`Feestdagen ${years[0]}–${years[years.length - 1]}`);
     const selected = {};
     const asType = {};
     list.forEach((_, i) => {
@@ -3520,33 +3541,35 @@ export default function HuishoudApp() {
                         {ev.allDay ? " · hele dag" : ev.time ? ` · ${ev.time}` : ""}
                         {ev.repeat !== "none" ? ` · ${REPEAT_LABELS[ev.repeat]}` : ""}
                       </div>
-                      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                        {[
-                          { key: "afspraak", label: "Afspraak" },
-                          { key: "verjaardag", label: "Verjaardag" },
-                        ].map((t) => {
-                          const active = importAsType[i] === t.key;
-                          return (
-                            <button
-                              key={t.key}
-                              onClick={() => setImportAsType({ ...importAsType, [i]: t.key })}
-                              style={{
-                                fontFamily: FONT_BODY,
-                                fontWeight: 600,
-                                fontSize: 11,
-                                padding: "3px 9px",
-                                borderRadius: 999,
-                                border: active ? "none" : "1px solid #D8DEE6",
-                                background: active ? (t.key === "verjaardag" ? BIRTHDAY_COLOR.bg : theme.bg) : "#fff",
-                                color: active ? "#fff" : "#8A96A3",
-                                cursor: "pointer",
-                              }}
-                            >
-                              {t.label}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      {importMode !== "holidays" && (
+                        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                          {[
+                            { key: "afspraak", label: "Afspraak" },
+                            { key: "verjaardag", label: "Verjaardag" },
+                          ].map((t) => {
+                            const active = importAsType[i] === t.key;
+                            return (
+                              <button
+                                key={t.key}
+                                onClick={() => setImportAsType({ ...importAsType, [i]: t.key })}
+                                style={{
+                                  fontFamily: FONT_BODY,
+                                  fontWeight: 600,
+                                  fontSize: 11,
+                                  padding: "3px 9px",
+                                  borderRadius: 999,
+                                  border: active ? "none" : "1px solid #D8DEE6",
+                                  background: active ? (t.key === "verjaardag" ? BIRTHDAY_COLOR.bg : theme.bg) : "#fff",
+                                  color: active ? "#fff" : "#8A96A3",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {t.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
