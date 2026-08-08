@@ -232,6 +232,16 @@ function recurringInstancesFor(iso, events) {
   return result;
 }
 
+function spanInstancesFor(iso, events) {
+  const result = [];
+  (events || []).forEach((e) => {
+    if (!e.endDate || e.endDate === e.date || e.endDate < e.date) return;
+    if (iso <= e.date || iso > e.endDate) return;
+    result.push({ ...e, id: `${e.id}-span-${iso}`, date: iso, originalId: e.id, isSpanInstance: true });
+  });
+  return result;
+}
+
 function unfoldICS(text) {
   // Regels die beginnen met een spatie/tab horen bij de vorige regel (ICS line folding)
   return text.replace(/\r\n/g, "\n").split("\n").reduce((lines, line) => {
@@ -348,6 +358,7 @@ function EventRow({ e, onRemove, onEdit, onEditBirthday }) {
         <div style={{ fontFamily: FONT_BODY, fontSize: 15, color: "#1E2A38", fontWeight: 500 }}>{e.title}</div>
         <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", marginTop: 2 }}>
           {e.isBirthday ? "Verjaardag · " : e.allDay ? "Hele dag · " : e.time ? `${e.time}${e.endTime ? `–${e.endTime}` : ""} · ` : ""}
+          {e.endDate && e.endDate !== e.date ? `t/m ${dayLabel(e.endDate)} · ` : ""}
           {e.owner}
           {e.repeat && e.repeat !== "none" ? ` · ${REPEAT_LABELS[e.repeat]}` : ""}
         </div>
@@ -617,7 +628,7 @@ export default function HuishoudApp() {
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [eventFormType, setEventFormType] = useState("afspraak");
   const [agendaFilter, setAgendaFilter] = useState("Alles");
-  const [newEvent, setNewEvent] = useState({ title: "", date: "", time: "", endTime: "", allDay: false, notes: "", owner: "Samen", repeat: "none" });
+  const [newEvent, setNewEvent] = useState({ title: "", date: "", endDate: "", time: "", endTime: "", allDay: false, notes: "", owner: "Samen", repeat: "none" });
   const [editingId, setEditingId] = useState(null);
   const [newBirthday, setNewBirthday] = useState({ name: "", day: "", month: "", year: "" });
   const [editingBirthdayId, setEditingBirthdayId] = useState(null);
@@ -894,7 +905,11 @@ export default function HuishoudApp() {
 
   const saveEvent = () => {
     if (!newEvent.title.trim() || !newEvent.date) return;
-    const cleaned = { ...newEvent, title: newEvent.title.trim() };
+    const cleaned = {
+      ...newEvent,
+      title: newEvent.title.trim(),
+      endDate: newEvent.endDate && newEvent.endDate >= newEvent.date ? newEvent.endDate : "",
+    };
     if (editingId) {
       const events = (data.events || []).map((e) => (e.id === editingId ? { ...e, ...cleaned } : e));
       save({ ...data, events });
@@ -902,7 +917,7 @@ export default function HuishoudApp() {
       const event = { id: Date.now().toString(36), ...cleaned };
       save({ ...data, events: [...(data.events || []), event] });
     }
-    setNewEvent({ title: "", date: "", time: "", endTime: "", allDay: false, notes: "", owner: user, repeat: "none" });
+    setNewEvent({ title: "", date: "", endDate: "", time: "", endTime: "", allDay: false, notes: "", owner: user, repeat: "none" });
     setEditingId(null);
     setShowAddEvent(false);
   };
@@ -974,21 +989,23 @@ export default function HuishoudApp() {
     setEventFormType("afspraak");
     setEditingId(null);
     setEditingBirthdayId(null);
-    setNewEvent({ title: "", date: dateForForm || selectedDay, time: "", endTime: "", allDay: false, notes: "", owner: user, repeat: "none" });
+    setNewEvent({ title: "", date: dateForForm || selectedDay, endDate: "", time: "", endTime: "", allDay: false, notes: "", owner: user, repeat: "none" });
     setNewBirthday({ name: "", day: "", month: "", year: "" });
     setShowAddEvent(true);
   };
 
   const openEditEvent = (clicked) => {
-    const event = clicked.isRecurringInstance
-      ? (data.events || []).find((e) => e.id === clicked.originalId) || clicked
-      : clicked;
+    const event =
+      clicked.isRecurringInstance || clicked.isSpanInstance
+        ? (data.events || []).find((e) => e.id === clicked.originalId) || clicked
+        : clicked;
     setEventFormType("afspraak");
     setEditingBirthdayId(null);
     setEditingId(event.id);
     setNewEvent({
       title: event.title || "",
       date: event.date || "",
+      endDate: event.endDate || "",
       time: event.time || "",
       endTime: event.endTime || "",
       allDay: !!event.allDay,
@@ -1174,6 +1191,7 @@ export default function HuishoudApp() {
       ...birthdayEventsFor(iso, data.birthdays),
       ...(eventsByDate[iso] || []),
       ...recurringInstancesFor(iso, filteredEvents),
+      ...spanInstancesFor(iso, filteredEvents),
     ];
     return items.sort((a, b) => (a.time || "").localeCompare(b.time || ""));
   };
@@ -2610,6 +2628,12 @@ export default function HuishoudApp() {
                     />
                     <div style={{ marginBottom: 10 }}>
                       <DateSelect value={newEvent.date} onChange={(v) => setNewEvent({ ...newEvent, date: v })} />
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 4 }}>
+                        T/m (optioneel, voor meerdaagse afspraken zoals vakanties)
+                      </div>
+                      <DateSelect value={newEvent.endDate} onChange={(v) => setNewEvent({ ...newEvent, endDate: v })} />
                     </div>
 
                     <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, cursor: "pointer" }}>
