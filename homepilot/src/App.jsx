@@ -626,7 +626,7 @@ export default function HuishoudApp() {
   const [showImport, setShowImport] = useState(false);
   const [importParsed, setImportParsed] = useState([]);
   const [importSelected, setImportSelected] = useState({});
-  const [importOwner, setImportOwner] = useState("Emily");
+  const [importOwner, setImportOwner] = useState("Samen");
   const [importFileName, setImportFileName] = useState("");
   const fileInputRef = useRef(null);
   const [selectedDay, setSelectedDay] = useState(toISO(new Date()));
@@ -1009,6 +1009,7 @@ export default function HuishoudApp() {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     setImportFileName(file.name);
+    setImportOwner(user || "Samen");
     const reader = new FileReader();
     reader.onload = () => {
       try {
