@@ -658,7 +658,48 @@ function QtyStepper({ qty, onChange, size = "sm" }) {
   );
 }
 
+function AllDayChip({ e, onEdit, onEditBirthday }) {
+  const c = e.isBirthday ? BIRTHDAY_COLOR : OWNER_COLORS[e.owner] || OWNER_COLORS.Samen;
+  return (
+    <div
+      onClick={() => (e.isBirthday ? onEditBirthday && onEditBirthday(e.birthdayId) : onEdit(e))}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        background: c.bg,
+        color: "#fff",
+        borderRadius: 8,
+        padding: "6px 10px",
+        cursor: "pointer",
+      }}
+    >
+      <span
+        style={{
+          fontFamily: FONT_BODY,
+          fontSize: 12,
+          fontWeight: 600,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          flex: 1,
+          minWidth: 0,
+        }}
+      >
+        {e.title}
+      </span>
+      {e.endDate && e.endDate !== e.date && (
+        <span style={{ fontFamily: FONT_BODY, fontSize: 11, opacity: 0.85, flexShrink: 0 }}>
+          t/m {dayLabel(e.endDate)}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function DayList({ dateISO, items, onRemove, onEdit, onEditBirthday, onRequestRemove }) {
+  const allDayItems = items.filter((e) => e.isBirthday || e.allDay);
+  const timedItems = items.filter((e) => !e.isBirthday && !e.allDay);
   return (
     <div>
       <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
@@ -667,11 +708,22 @@ function DayList({ dateISO, items, onRemove, onEdit, onEditBirthday, onRequestRe
       {items.length === 0 ? (
         <div style={{ fontFamily: FONT_BODY, color: "#A6AEB8", fontSize: 14, padding: "12px 2px" }}>Geen afspraken.</div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {items.map((e) => (
-            <EventRow key={e.id} e={e} onRemove={onRemove} onEdit={onEdit} onEditBirthday={onEditBirthday} onRequestRemove={onRequestRemove} />
-          ))}
-        </div>
+        <>
+          {allDayItems.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: timedItems.length > 0 ? 8 : 0 }}>
+              {allDayItems.map((e) => (
+                <AllDayChip key={e.id} e={e} onEdit={onEdit} onEditBirthday={onEditBirthday} />
+              ))}
+            </div>
+          )}
+          {timedItems.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {timedItems.map((e) => (
+                <EventRow key={e.id} e={e} onRemove={onRemove} onEdit={onEdit} onEditBirthday={onEditBirthday} onRequestRemove={onRequestRemove} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -1529,7 +1581,51 @@ export default function HuishoudApp() {
               }
               return (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {todaysItems.map((e) => (
+                  {todaysItems.filter((e) => e.isBirthday || e.allDay).length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {todaysItems
+                        .filter((e) => e.isBirthday || e.allDay)
+                        .map((e) => (
+                          <div
+                            key={e.id}
+                            onClick={() => {
+                              setAgendaView("dag");
+                              setCursorDate(todayIso);
+                              setSelectedDay(todayIso);
+                              setTab("agenda");
+                            }}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                              background: (e.isBirthday ? BIRTHDAY_COLOR : OWNER_COLORS[e.owner] || OWNER_COLORS.Samen).bg,
+                              color: "#fff",
+                              borderRadius: 8,
+                              padding: "6px 10px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontFamily: FONT_BODY,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                flex: 1,
+                                minWidth: 0,
+                              }}
+                            >
+                              {e.title}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                  {todaysItems
+                    .filter((e) => !e.isBirthday && !e.allDay)
+                    .map((e) => (
                     <button
                       key={e.id}
                       onClick={() => {
@@ -1546,7 +1642,7 @@ export default function HuishoudApp() {
                         borderRadius: 12,
                         padding: "12px 12px",
                         border: "1px solid #EDEFF2",
-                        borderLeft: `4px solid ${(e.isBirthday ? BIRTHDAY_COLOR : OWNER_COLORS[e.owner] || OWNER_COLORS.Samen).bg}`,
+                        borderLeft: `4px solid ${(OWNER_COLORS[e.owner] || OWNER_COLORS.Samen).bg}`,
                         cursor: "pointer",
                         textAlign: "left",
                         width: "100%",
@@ -1555,7 +1651,7 @@ export default function HuishoudApp() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontFamily: FONT_BODY, fontSize: 15, color: "#1E2A38", fontWeight: 500 }}>{e.title}</div>
                         <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", marginTop: 2 }}>
-                          {e.isBirthday ? "Verjaardag" : e.allDay ? "Hele dag" : e.time || "Hele dag"}
+                          {e.time || "Hele dag"}
                         </div>
                       </div>
                     </button>
@@ -2607,30 +2703,46 @@ export default function HuishoudApp() {
                 )}
 
                 {agendaView === "week" &&
-                  Array.from({ length: 7 }, (_, i) => toISO(addDays(startOfWeek(cursorD), i))).map((iso) => (
-                    <div key={iso} style={{ marginBottom: 16 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                        <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, textTransform: "uppercase" }}>
-                          {dayLabel(iso)}
+                  Array.from({ length: 7 }, (_, i) => toISO(addDays(startOfWeek(cursorD), i))).map((iso) => {
+                    const dayItems = getDayItems(iso);
+                    const allDayItems = dayItems.filter((e) => e.isBirthday || e.allDay);
+                    const timedItems = dayItems.filter((e) => !e.isBirthday && !e.allDay);
+                    return (
+                      <div key={iso} style={{ marginBottom: 16 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                          <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, textTransform: "uppercase" }}>
+                            {dayLabel(iso)}
+                          </div>
+                          <button
+                            onClick={() => openAddEvent(iso)}
+                            style={{ background: "none", border: "none", color: "#B8C2CC", cursor: "pointer", padding: 2 }}
+                          >
+                            <Plus size={14} />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => openAddEvent(iso)}
-                          style={{ background: "none", border: "none", color: "#B8C2CC", cursor: "pointer", padding: 2 }}
-                        >
-                          <Plus size={14} />
-                        </button>
+                        {dayItems.length === 0 ? (
+                          <div style={{ fontFamily: FONT_BODY, fontSize: 13, color: "#C7CFD8", paddingLeft: 2 }}>—</div>
+                        ) : (
+                          <>
+                            {allDayItems.length > 0 && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: timedItems.length > 0 ? 6 : 0 }}>
+                                {allDayItems.map((e) => (
+                                  <AllDayChip key={e.id} e={e} onEdit={openEditEvent} onEditBirthday={openEditBirthday} />
+                                ))}
+                              </div>
+                            )}
+                            {timedItems.length > 0 && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                {timedItems.map((e) => (
+                                  <EventRow key={e.id} e={e} onRemove={removeEvent} onEdit={openEditEvent} onEditBirthday={openEditBirthday} onRequestRemove={requestRemoveEvent} />
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
-                      {getDayItems(iso).length === 0 ? (
-                        <div style={{ fontFamily: FONT_BODY, fontSize: 13, color: "#C7CFD8", paddingLeft: 2 }}>—</div>
-                      ) : (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          {getDayItems(iso).map((e) => (
-                            <EventRow key={e.id} e={e} onRemove={removeEvent} onEdit={openEditEvent} onEditBirthday={openEditBirthday} onRequestRemove={requestRemoveEvent} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
 
                 {agendaView === "maand" && (
                   <>
