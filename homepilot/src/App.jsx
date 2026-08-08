@@ -167,6 +167,13 @@ function monthGrid(d) {
 }
 
 const BIRTHDAY_COLOR = { bg: "#D9A02A", text: "#FFFFFF" };
+const HOLIDAY_COLOR = { bg: "#5AA9E6", text: "#FFFFFF" };
+
+function colorForEvent(e) {
+  if (e.isBirthday) return BIRTHDAY_COLOR;
+  if (e.isHoliday) return HOLIDAY_COLOR;
+  return OWNER_COLORS[e.owner] || OWNER_COLORS.Samen;
+}
 
 function birthdayEventsFor(iso, birthdays) {
   const d = fromISO(iso);
@@ -307,6 +314,54 @@ function extractBirthdayName(title) {
   return t || title;
 }
 
+function easterSunday(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+function dutchHolidaysForYear(year) {
+  const easter = easterSunday(year);
+  let koningsdag = new Date(year, 3, 27);
+  if (koningsdag.getDay() === 0) koningsdag = new Date(year, 3, 26);
+  const list = [
+    { title: "Nieuwjaarsdag", date: new Date(year, 0, 1) },
+    { title: "Goede Vrijdag", date: addDays(easter, -2) },
+    { title: "Eerste Paasdag", date: easter },
+    { title: "Tweede Paasdag", date: addDays(easter, 1) },
+    { title: "Koningsdag", date: koningsdag },
+    { title: "Bevrijdingsdag", date: new Date(year, 4, 5) },
+    { title: "Hemelvaartsdag", date: addDays(easter, 39) },
+    { title: "Eerste Pinksterdag", date: addDays(easter, 49) },
+    { title: "Tweede Pinksterdag", date: addDays(easter, 50) },
+    { title: "Eerste Kerstdag", date: new Date(year, 11, 25) },
+    { title: "Tweede Kerstdag", date: new Date(year, 11, 26) },
+  ];
+  return list.map((h) => ({
+    title: h.title,
+    date: toISO(h.date),
+    time: "",
+    endTime: "",
+    allDay: true,
+    notes: "",
+    repeat: "none",
+    isBirthdayLike: false,
+    isHoliday: true,
+  }));
+}
+
 function parseVCardBday(raw) {
   let s = (raw || "").trim().split(";")[0];
   let noYear = false;
@@ -414,7 +469,7 @@ function parseICS(text) {
 }
 
 function EventRow({ e, onRemove, onEdit, onEditBirthday, onRequestRemove }) {
-  const c = e.isBirthday ? BIRTHDAY_COLOR : OWNER_COLORS[e.owner] || OWNER_COLORS.Samen;
+  const c = colorForEvent(e);
   return (
     <div
       onClick={() => (e.isBirthday ? onEditBirthday && onEditBirthday(e.birthdayId) : onEdit(e))}
@@ -433,7 +488,7 @@ function EventRow({ e, onRemove, onEdit, onEditBirthday, onRequestRemove }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: FONT_BODY, fontSize: 15, color: "#1E2A38", fontWeight: 500 }}>{e.title}</div>
         <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", marginTop: 2 }}>
-          {e.isBirthday ? "Verjaardag · " : e.allDay ? "Hele dag · " : e.time ? `${e.time}${e.endTime ? `–${e.endTime}` : ""} · ` : ""}
+          {e.isBirthday ? "Verjaardag · " : e.isHoliday ? "Feestdag · " : e.allDay ? "Hele dag · " : e.time ? `${e.time}${e.endTime ? `–${e.endTime}` : ""} · ` : ""}
           {e.endDate && e.endDate !== e.date ? `t/m ${dayLabel(e.endDate)} · ` : ""}
           {e.owner}
           {e.repeat && e.repeat !== "none" ? ` · ${REPEAT_LABELS[e.repeat]}` : ""}
@@ -659,7 +714,7 @@ function QtyStepper({ qty, onChange, size = "sm" }) {
 }
 
 function AllDayChip({ e, onEdit, onEditBirthday }) {
-  const c = e.isBirthday ? BIRTHDAY_COLOR : OWNER_COLORS[e.owner] || OWNER_COLORS.Samen;
+  const c = colorForEvent(e);
   return (
     <div
       onClick={() => (e.isBirthday ? onEditBirthday && onEditBirthday(e.birthdayId) : onEdit(e))}
@@ -1243,6 +1298,7 @@ export default function HuishoudApp() {
           notes: ev.notes,
           repeat: ev.repeat,
           owner: importOwner,
+          isHoliday: !!ev.isHoliday,
         });
       }
     });
@@ -1268,6 +1324,24 @@ export default function HuishoudApp() {
     setImportSelected({});
     setImportAsType({});
     setImportFileName("");
+  };
+
+  const addDutchHolidays = () => {
+    const nowY = new Date().getFullYear();
+    const years = [nowY, nowY + 1];
+    const list = years.flatMap((y) => dutchHolidaysForYear(y));
+    setImportParsed(list);
+    setImportFileName(`Nederlandse feestdagen ${years[0]}–${years[years.length - 1]}`);
+    const selected = {};
+    const asType = {};
+    list.forEach((_, i) => {
+      selected[i] = true;
+      asType[i] = "afspraak";
+    });
+    setImportSelected(selected);
+    setImportAsType(asType);
+    setImportOwner("Samen");
+    setShowImport(true);
   };
 
   if (session === undefined) {
@@ -1598,7 +1672,7 @@ export default function HuishoudApp() {
                               display: "flex",
                               alignItems: "center",
                               gap: 6,
-                              background: (e.isBirthday ? BIRTHDAY_COLOR : OWNER_COLORS[e.owner] || OWNER_COLORS.Samen).bg,
+                              background: colorForEvent(e).bg,
                               color: "#fff",
                               borderRadius: 8,
                               padding: "6px 10px",
@@ -2659,10 +2733,16 @@ export default function HuishoudApp() {
                   </button>
                 ))}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <button
+                  onClick={addDutchHolidays}
+                  style={{ fontFamily: FONT_BODY, fontSize: 12, fontWeight: 600, color: "#8A96A3", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  Feestdagen
+                </button>
                 <button
                   onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                  style={{ fontFamily: FONT_BODY, fontSize: 12, fontWeight: 600, color: "#8A96A3", background: "none", border: "none", cursor: "pointer" }}
+                  style={{ fontFamily: FONT_BODY, fontSize: 12, fontWeight: 600, color: "#8A96A3", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
                 >
                   Importeren
                 </button>
@@ -2675,7 +2755,7 @@ export default function HuishoudApp() {
                 />
                 <button
                   onClick={goToday}
-                  style={{ fontFamily: FONT_BODY, fontSize: 12, fontWeight: 600, color: theme.bg, background: "none", border: "none", cursor: "pointer" }}
+                  style={{ fontFamily: FONT_BODY, fontSize: 12, fontWeight: 600, color: theme.bg, background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
                 >
                   Vandaag
                 </button>
@@ -2761,8 +2841,9 @@ export default function HuishoudApp() {
                           const isToday = iso === toISO(new Date());
                           const isSelected = iso === selectedDay;
                           const dayItems = getDayItems(iso);
-                          const owners = [...new Set(dayItems.filter((e) => !e.isBirthday).map((e) => e.owner))];
+                          const owners = [...new Set(dayItems.filter((e) => !e.isBirthday && !e.isHoliday).map((e) => e.owner))];
                           const hasBirthday = dayItems.some((e) => e.isBirthday);
+                          const hasHoliday = dayItems.some((e) => e.isHoliday);
                           return (
                             <button
                               key={iso}
@@ -2798,6 +2879,16 @@ export default function HuishoudApp() {
                                       height: 4,
                                       borderRadius: 999,
                                       background: isSelected ? "#fff" : BIRTHDAY_COLOR.bg,
+                                    }}
+                                  />
+                                )}
+                                {hasHoliday && (
+                                  <span
+                                    style={{
+                                      width: 4,
+                                      height: 4,
+                                      borderRadius: 999,
+                                      background: isSelected ? "#fff" : HOLIDAY_COLOR.bg,
                                     }}
                                   />
                                 )}
