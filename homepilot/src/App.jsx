@@ -217,6 +217,7 @@ function recurringInstancesFor(iso, events) {
   const result = [];
   (events || []).forEach((e) => {
     if (!e.repeat || e.repeat === "none" || e.date === iso) return;
+    if ((e.excludedDates || []).includes(iso)) return;
     const anchor = fromISO(e.date);
     const diffDays = Math.round((d - anchor) / 86400000);
     if (diffDays < 0) return;
@@ -382,7 +383,11 @@ function EventRow({ e, onRemove, onEdit, onEditBirthday }) {
         <button
           onClick={(ev) => {
             ev.stopPropagation();
-            onRemove(e.id);
+            if (e.isRecurringInstance || e.isSpanInstance) {
+              onEdit(e);
+            } else {
+              onRemove(e.id);
+            }
           }}
           style={{ background: "none", border: "none", color: "#C7CFD8", cursor: "pointer", padding: 4, flexShrink: 0 }}
         >
@@ -630,6 +635,8 @@ export default function HuishoudApp() {
   const [agendaFilter, setAgendaFilter] = useState("Alles");
   const [newEvent, setNewEvent] = useState({ title: "", date: "", endDate: "", time: "", endTime: "", allDay: false, notes: "", owner: "Samen", repeat: "none" });
   const [editingId, setEditingId] = useState(null);
+  const [deleteTargetDate, setDeleteTargetDate] = useState("");
+  const [confirmDeleteChoice, setConfirmDeleteChoice] = useState(false);
   const [newBirthday, setNewBirthday] = useState({ name: "", day: "", month: "", year: "" });
   const [editingBirthdayId, setEditingBirthdayId] = useState(null);
   const [agendaView, setAgendaView] = useState("week");
@@ -927,7 +934,20 @@ export default function HuishoudApp() {
     if (editingId === id) {
       setEditingId(null);
       setShowAddEvent(false);
+      setConfirmDeleteChoice(false);
     }
+  };
+
+  const removeEventOccurrence = (id, dateToExclude) => {
+    const events = (data.events || []).map((e) => {
+      if (e.id !== id) return e;
+      const excludedDates = Array.from(new Set([...(e.excludedDates || []), dateToExclude]));
+      return { ...e, excludedDates };
+    });
+    save({ ...data, events });
+    setEditingId(null);
+    setShowAddEvent(false);
+    setConfirmDeleteChoice(false);
   };
 
   const saveBirthday = () => {
@@ -989,6 +1009,7 @@ export default function HuishoudApp() {
     setEventFormType("afspraak");
     setEditingId(null);
     setEditingBirthdayId(null);
+    setConfirmDeleteChoice(false);
     setNewEvent({ title: "", date: dateForForm || selectedDay, endDate: "", time: "", endTime: "", allDay: false, notes: "", owner: user, repeat: "none" });
     setNewBirthday({ name: "", day: "", month: "", year: "" });
     setShowAddEvent(true);
@@ -1002,6 +1023,8 @@ export default function HuishoudApp() {
     setEventFormType("afspraak");
     setEditingBirthdayId(null);
     setEditingId(event.id);
+    setDeleteTargetDate(clicked.date || event.date);
+    setConfirmDeleteChoice(false);
     setNewEvent({
       title: event.title || "",
       date: event.date || "",
@@ -1020,6 +1043,7 @@ export default function HuishoudApp() {
     setShowAddEvent(false);
     setEditingId(null);
     setEditingBirthdayId(null);
+    setConfirmDeleteChoice(false);
   };
 
   const handleICSFile = (e) => {
@@ -1180,6 +1204,7 @@ export default function HuishoudApp() {
   );
   const eventsByDate = {};
   filteredEvents.forEach((e) => {
+    if ((e.excludedDates || []).includes(e.date)) return;
     (eventsByDate[e.date] = eventsByDate[e.date] || []).push(e);
   });
   Object.values(eventsByDate).forEach((list) =>
@@ -2772,23 +2797,53 @@ export default function HuishoudApp() {
                       </button>
                     </div>
                     {editingId && (
-                      <button
-                        onClick={() => removeEvent(editingId)}
-                        style={{
-                          marginTop: 8,
-                          width: "100%",
-                          background: "none",
-                          border: "none",
-                          color: "#C8272A",
-                          fontFamily: FONT_BODY,
-                          fontSize: 13,
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          padding: 6,
-                        }}
-                      >
-                        Afspraak verwijderen
-                      </button>
+                      <>
+                        {newEvent.repeat !== "none" && confirmDeleteChoice ? (
+                          <div style={{ marginTop: 8, background: "#FFF4F0", border: "1px solid #F3C9BC", borderRadius: 10, padding: 10 }}>
+                            <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A3B1F", marginBottom: 8 }}>
+                              Dit is een herhalende afspraak. Wat wil je verwijderen?
+                            </div>
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <button
+                                onClick={() => removeEventOccurrence(editingId, deleteTargetDate)}
+                                style={{ ...smallBtn, background: "#C8272A", flex: 1, fontSize: 12, padding: "8px 10px" }}
+                              >
+                                Alleen deze
+                              </button>
+                              <button
+                                onClick={() => removeEvent(editingId)}
+                                style={{ ...smallBtn, background: "#C8272A", flex: 1, fontSize: 12, padding: "8px 10px" }}
+                              >
+                                Hele reeks
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteChoice(false)}
+                                style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6", fontSize: 12, padding: "8px 10px" }}
+                              >
+                                Annuleren
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => (newEvent.repeat !== "none" ? setConfirmDeleteChoice(true) : removeEvent(editingId))}
+                            style={{
+                              marginTop: 8,
+                              width: "100%",
+                              background: "none",
+                              border: "none",
+                              color: "#C8272A",
+                              fontFamily: FONT_BODY,
+                              fontSize: 13,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              padding: 6,
+                            }}
+                          >
+                            Afspraak verwijderen
+                          </button>
+                        )}
+                      </>
                     )}
                   </>
                 ) : (
