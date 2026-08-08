@@ -2603,7 +2603,23 @@ export default function HuishoudApp() {
                 )}
 
             {showAddEvent ? (
-              <div style={{ marginTop: 14, background: "#fff", borderRadius: 14, padding: 16, border: "1px solid #EDEFF2" }}>
+              <div
+                onClick={closeEventForm}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: "rgba(15,42,74,0.45)",
+                  display: "flex",
+                  alignItems: "flex-end",
+                  justifyContent: "center",
+                  zIndex: 30,
+                  padding: 16,
+                }}
+              >
+              <div
+                onClick={(ev) => ev.stopPropagation()}
+                style={{ background: "#fff", borderRadius: 16, padding: 16, border: "1px solid #EDEFF2", width: "100%", maxHeight: "88%", overflowY: "auto", boxShadow: "0 -12px 40px rgba(15,42,74,0.3)" }}
+              >
                 {editingId || editingBirthdayId ? (
                   <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, marginBottom: 12, textTransform: "uppercase" }}>
                     {eventFormType === "afspraak" ? "Afspraak bewerken" : "Verjaardag bewerken"}
@@ -2938,6 +2954,7 @@ export default function HuishoudApp() {
                     )}
                   </>
                 )}
+              </div>
               </div>
             ) : (
               <button
