@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ShoppingCart, CreditCard, Plus, X, Check, Store, User, Loader2, Trash2, Calendar, Home, ListChecks, Star, GripVertical } from "lucide-react";
+import { ShoppingCart, CreditCard, Plus, X, Check, Store, User, Loader2, Trash2, Calendar, Home, ListChecks, Star, GripVertical, MapPin } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
@@ -448,6 +448,30 @@ function EventRow({ e, onRemove, onEdit, onEditBirthday, onRequestRemove }) {
           {e.owner}
           {e.repeat && e.repeat !== "none" ? ` · ${REPEAT_LABELS[e.repeat]}` : ""}
         </div>
+        {e.location && (
+          <a
+            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(ev) => ev.stopPropagation()}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              fontFamily: FONT_BODY,
+              fontSize: 12,
+              color: "#5C6B7A",
+              marginTop: 3,
+              textDecoration: "none",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <MapPin size={12} style={{ flexShrink: 0 }} />
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", textDecoration: "underline" }}>{e.location}</span>
+          </a>
+        )}
         {e.notes && (
           <div
             style={{
@@ -767,7 +791,7 @@ function shade(hex, percent) {
 export default function HuishoudApp() {
   const [tab, setTab] = useState("home");
   const [user, setUser] = useState(null);
-  const [data, setData] = useState({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {} });
+  const [data, setData] = useState({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [] });
   const [activeStore, setActiveStore] = useState(DEFAULT_STORES[0]);
   const [loading, setLoading] = useState(true);
   const [newItem, setNewItem] = useState("");
@@ -788,9 +812,11 @@ export default function HuishoudApp() {
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [eventFormType, setEventFormType] = useState("afspraak");
   const [agendaFilter, setAgendaFilter] = useState("Alles");
-  const [newEvent, setNewEvent] = useState({ title: "", date: "", endDate: "", time: "", endTime: "", allDay: false, notes: "", owner: "Samen", repeat: "none" });
+  const [newEvent, setNewEvent] = useState({ title: "", date: "", endDate: "", time: "", endTime: "", allDay: false, location: "", notes: "", owner: "Samen", repeat: "none" });
   const [editingId, setEditingId] = useState(null);
   const [deleteTargetDate, setDeleteTargetDate] = useState("");
+  const [showSaveLocation, setShowSaveLocation] = useState(false);
+  const [newLocationLabel, setNewLocationLabel] = useState("");
   const [confirmRemoveEvent, setConfirmRemoveEvent] = useState(null);
   const [confirmDeleteChoice, setConfirmDeleteChoice] = useState(false);
   const [newBirthday, setNewBirthday] = useState({ name: "", day: "", month: "", year: "" });
@@ -854,7 +880,7 @@ export default function HuishoudApp() {
         const row = await fetchHousehold();
         if (row) {
           const parsed = row.data || {};
-          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, ...parsed });
+          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], ...parsed });
           if (parsed.stores?.length) setActiveStore(parsed.stores[0]);
           lastSyncRef.current = row.updated_at;
           setSyncStatus("ok");
@@ -882,7 +908,7 @@ export default function HuishoudApp() {
           const row = payload.new;
           if (!row || row.updated_at === lastSyncRef.current) return;
           const parsed = row.data || {};
-          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, ...parsed });
+          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], ...parsed });
           lastSyncRef.current = row.updated_at;
         }
       )
@@ -1107,6 +1133,17 @@ export default function HuishoudApp() {
     save({ ...data, todos: (data.todos || []).filter((t) => getTodoStatus(t) !== "klaar") });
   };
 
+  const addFavoriteLocation = (label, address) => {
+    if (!label.trim() || !address.trim()) return;
+    const current = data.favoriteLocations || [];
+    const next = [...current.filter((f) => f.label.toLowerCase() !== label.trim().toLowerCase()), { id: Date.now().toString(36), label: label.trim(), address: address.trim() }];
+    save({ ...data, favoriteLocations: next });
+  };
+
+  const removeFavoriteLocation = (id) => {
+    save({ ...data, favoriteLocations: (data.favoriteLocations || []).filter((f) => f.id !== id) });
+  };
+
   const saveEvent = () => {
     if (!newEvent.title.trim() || !newEvent.date) return;
     const cleaned = {
@@ -1121,7 +1158,7 @@ export default function HuishoudApp() {
       const event = { id: Date.now().toString(36), ...cleaned };
       save({ ...data, events: [...(data.events || []), event] });
     }
-    setNewEvent({ title: "", date: "", endDate: "", time: "", endTime: "", allDay: false, notes: "", owner: user, repeat: "none" });
+    setNewEvent({ title: "", date: "", endDate: "", time: "", endTime: "", allDay: false, location: "", notes: "", owner: user, repeat: "none" });
     setEditingId(null);
     setShowAddEvent(false);
   };
@@ -1215,7 +1252,7 @@ export default function HuishoudApp() {
     setEditingId(null);
     setEditingBirthdayId(null);
     setConfirmDeleteChoice(false);
-    setNewEvent({ title: "", date: dateForForm || selectedDay, endDate: "", time: "", endTime: "", allDay: false, notes: "", owner: user, repeat: "none" });
+    setNewEvent({ title: "", date: dateForForm || selectedDay, endDate: "", time: "", endTime: "", allDay: false, location: "", notes: "", owner: user, repeat: "none" });
     setNewBirthday({ name: "", day: "", month: "", year: "" });
     setShowAddEvent(true);
   };
@@ -1237,6 +1274,7 @@ export default function HuishoudApp() {
       time: event.time || "",
       endTime: event.endTime || "",
       allDay: !!event.allDay,
+      location: event.location || "",
       notes: event.notes || "",
       owner: event.owner || user,
       repeat: event.repeat || "none",
@@ -1249,6 +1287,8 @@ export default function HuishoudApp() {
     setEditingId(null);
     setEditingBirthdayId(null);
     setConfirmDeleteChoice(false);
+    setShowSaveLocation(false);
+    setNewLocationLabel("");
   };
 
   const handleICSFile = (e) => {
@@ -3228,6 +3268,104 @@ export default function HuishoudApp() {
                         );
                       })}
                     </div>
+
+                    {(data.favoriteLocations || []).length > 0 && (
+                      <div style={{ display: "flex", gap: 6, marginBottom: 8, overflowX: "auto", paddingBottom: 2 }}>
+                        {data.favoriteLocations.map((fav) => (
+                          <button
+                            key={fav.id}
+                            onClick={() => setNewEvent({ ...newEvent, location: fav.address })}
+                            style={{
+                              flexShrink: 0,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 5,
+                              background: "#FFF9EC",
+                              border: `1px solid ${BIRTHDAY_COLOR.bg}55`,
+                              borderRadius: 999,
+                              padding: "5px 9px",
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            <Star size={11} color={BIRTHDAY_COLOR.bg} fill={BIRTHDAY_COLOR.bg} />
+                            <span style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#1E2A38", fontWeight: 500 }}>{fav.label}</span>
+                            <span
+                              role="button"
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                removeFavoriteLocation(fav.id);
+                              }}
+                              style={{ display: "flex", alignItems: "center", color: "#C7CFD8" }}
+                            >
+                              <X size={11} />
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <input
+                      value={newEvent.location}
+                      onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
+                      placeholder="Locatie (optioneel)"
+                      style={{ ...inputStyle, width: "100%", marginBottom: 6 }}
+                    />
+
+                    {newEvent.location.trim() && (
+                      <div style={{ marginBottom: 10 }}>
+                        {showSaveLocation ? (
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <input
+                              value={newLocationLabel}
+                              onChange={(e) => setNewLocationLabel(e.target.value)}
+                              placeholder="Naam, bijv. Thuis"
+                              autoFocus
+                              style={{ ...inputStyle, flex: 1, fontSize: 12, padding: "6px 10px" }}
+                            />
+                            <button
+                              onClick={() => {
+                                addFavoriteLocation(newLocationLabel, newEvent.location);
+                                setShowSaveLocation(false);
+                                setNewLocationLabel("");
+                              }}
+                              disabled={!newLocationLabel.trim()}
+                              style={{ ...smallBtn, background: BIRTHDAY_COLOR.bg, fontSize: 12, padding: "6px 10px", opacity: newLocationLabel.trim() ? 1 : 0.5 }}
+                            >
+                              Opslaan
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowSaveLocation(false);
+                                setNewLocationLabel("");
+                              }}
+                              style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6", fontSize: 12, padding: "6px 10px" }}
+                            >
+                              Annuleren
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setShowSaveLocation(true)}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                              background: "none",
+                              border: "none",
+                              color: "#8A96A3",
+                              fontFamily: FONT_BODY,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              padding: 0,
+                            }}
+                          >
+                            <Star size={12} /> Opslaan als favoriet
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                     <textarea
                       value={newEvent.notes}
