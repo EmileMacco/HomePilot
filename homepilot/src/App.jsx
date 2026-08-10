@@ -1380,8 +1380,20 @@ export default function HuishoudApp() {
 
   if (session === undefined) {
     return (
-      <div style={{ ...shell, alignItems: "center", justifyContent: "center" }}>
-        <Loader2 size={28} color="#0F2A4A" className="spin" />
+      <div
+        style={{
+          ...shell,
+          alignItems: "center",
+          justifyContent: "center",
+          background: `linear-gradient(135deg, ${shade("#6B4E9C", -25)}, #6B4E9C)`,
+        }}
+      >
+        <img
+          src="/icons/icon-192.png"
+          alt="HomePilot"
+          style={{ width: 96, height: 96, borderRadius: 22, boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}
+        />
+        <Loader2 size={22} color="#fff" className="spin" style={{ marginTop: 22 }} />
         <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
     );
@@ -1429,8 +1441,20 @@ export default function HuishoudApp() {
 
   if (loading) {
     return (
-      <div style={{ ...shell, alignItems: "center", justifyContent: "center" }}>
-        <Loader2 size={28} color={theme.bg} className="spin" />
+      <div
+        style={{
+          ...shell,
+          alignItems: "center",
+          justifyContent: "center",
+          background: `linear-gradient(135deg, ${shade("#6B4E9C", -25)}, #6B4E9C)`,
+        }}
+      >
+        <img
+          src="/icons/icon-192.png"
+          alt="HomePilot"
+          style={{ width: 96, height: 96, borderRadius: 22, boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}
+        />
+        <Loader2 size={22} color="#fff" className="spin" style={{ marginTop: 22 }} />
         <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
     );
