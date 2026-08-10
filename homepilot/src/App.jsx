@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ShoppingCart, CreditCard, Plus, X, Check, Store, User, Loader2, Trash2, Calendar, Home, ListChecks, Star } from "lucide-react";
+import { ShoppingCart, CreditCard, Plus, X, Check, Store, User, Loader2, Trash2, Calendar, Home, ListChecks, Star, ChevronUp, ChevronDown } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -957,6 +957,33 @@ export default function HuishoudApp() {
       nextList = [...list, { id: Date.now().toString(36), text, done: false, addedBy: user, qty: 1 }];
     }
     save({ ...data, lists: { ...data.lists, [store]: nextList } });
+  };
+
+  const moveItem = (store, id, direction) => {
+    const list = [...(data.lists[store] || [])];
+    const idx = list.findIndex((it) => it.id === id);
+    if (idx === -1) return;
+    const bucket = (it) => (it.done ? "done" : isItemActive(it, todayIso) ? "active" : "upcoming");
+    const targetBucket = bucket(list[idx]);
+    let swapIdx = -1;
+    if (direction === "up") {
+      for (let i = idx - 1; i >= 0; i--) {
+        if (bucket(list[i]) === targetBucket) {
+          swapIdx = i;
+          break;
+        }
+      }
+    } else {
+      for (let i = idx + 1; i < list.length; i++) {
+        if (bucket(list[i]) === targetBucket) {
+          swapIdx = i;
+          break;
+        }
+      }
+    }
+    if (swapIdx === -1) return;
+    [list[idx], list[swapIdx]] = [list[swapIdx], list[idx]];
+    save({ ...data, lists: { ...data.lists, [store]: list } });
   };
 
   const openEditItem = (store, it) => {
@@ -2010,10 +2037,7 @@ export default function HuishoudApp() {
               {currentList
                 .filter((it) => it.done || isItemActive(it, todayIso))
                 .slice()
-                .sort((a, b) => {
-                  if (a.done !== b.done) return a.done ? 1 : -1;
-                  return (a.validTo || "9999-99-99").localeCompare(b.validTo || "9999-99-99");
-                })
+                .sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1))
                 .map((it) => {
                   if (editingItem && editingItem.store === activeStore && editingItem.id === it.id) {
                     return (
@@ -2089,6 +2113,25 @@ export default function HuishoudApp() {
                         cursor: "pointer",
                       }}
                     >
+                      {!it.done && (
+                        <div
+                          onClick={(ev) => ev.stopPropagation()}
+                          style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}
+                        >
+                          <button
+                            onClick={() => moveItem(activeStore, it.id, "up")}
+                            style={{ background: "none", border: "none", color: "#C7CFD8", cursor: "pointer", padding: 0, height: 14, display: "flex", alignItems: "center" }}
+                          >
+                            <ChevronUp size={14} />
+                          </button>
+                          <button
+                            onClick={() => moveItem(activeStore, it.id, "down")}
+                            style={{ background: "none", border: "none", color: "#C7CFD8", cursor: "pointer", padding: 0, height: 14, display: "flex", alignItems: "center" }}
+                          >
+                            <ChevronDown size={14} />
+                          </button>
+                        </div>
+                      )}
                       <button
                         onClick={(ev) => {
                           ev.stopPropagation();
