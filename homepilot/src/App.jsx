@@ -1603,6 +1603,50 @@ export default function HuishoudApp() {
               );
             })()}
 
+            {(() => {
+              const upcomingTodos = (data.todos || [])
+                .filter((t) => getTodoStatus(t) !== "klaar" && t.date && daysUntil(t.date, todayIso) >= 0 && daysUntil(t.date, todayIso) <= 3)
+                .sort((a, b) => a.date.localeCompare(b.date));
+              if (upcomingTodos.length === 0) return null;
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20, marginTop: -12 }}>
+                  {upcomingTodos.map((t) => {
+                    const status = getTodoStatus(t);
+                    const meta = STATUS_META[status];
+                    const daysLeft = daysUntil(t.date, todayIso);
+                    const urgent = daysLeft <= 2;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => setTab("taken")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 10,
+                          background: "#fff",
+                          borderRadius: 12,
+                          padding: "12px 12px",
+                          border: `1px solid ${urgent ? "#F3C9BC" : "#EDEFF2"}`,
+                          borderLeft: `4px solid ${meta.color}`,
+                          cursor: "pointer",
+                          textAlign: "left",
+                          width: "100%",
+                        }}
+                      >
+                        <span style={{ fontFamily: FONT_BODY, fontSize: 14, color: "#1E2A38", fontWeight: 500, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {t.title}
+                        </span>
+                        <span style={{ fontFamily: FONT_BODY, fontSize: 12, color: urgent ? "#C8272A" : "#8A96A3", flexShrink: 0 }}>
+                          {daysLeft === 0 ? "Vandaag" : daysLeft === 1 ? "Morgen" : `over ${daysLeft} dagen`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
             <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
               Vandaag
             </div>
