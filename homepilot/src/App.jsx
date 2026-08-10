@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ShoppingCart, CreditCard, Plus, X, Check, Store, User, Loader2, Trash2, Calendar, Home, ListChecks, Star, ChevronUp, ChevronDown } from "lucide-react";
+import { ShoppingCart, CreditCard, Plus, X, Check, Store, User, Loader2, Trash2, Calendar, Home, ListChecks, Star, GripVertical } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
@@ -606,6 +609,22 @@ function TimeSelect({ value, onChange, placeholder }) {
   );
 }
 
+function SortableRow({ id, disabled, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : "auto",
+    position: "relative",
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({ attributes, listeners })}
+    </div>
+  );
+}
+
 function QtyStepper({ qty, onChange, size = "sm" }) {
   const dim = size === "sm" ? 22 : 30;
   const fontSize = size === "sm" ? 13 : 15;
@@ -789,6 +808,7 @@ export default function HuishoudApp() {
   const [selectedDay, setSelectedDay] = useState(toISO(new Date()));
 
   const lastSyncRef = useRef(null);
+  const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [syncStatus, setSyncStatus] = useState("ok");
   const [syncErrorDetail, setSyncErrorDetail] = useState("");
 
@@ -959,31 +979,15 @@ export default function HuishoudApp() {
     save({ ...data, lists: { ...data.lists, [store]: nextList } });
   };
 
-  const moveItem = (store, id, direction) => {
-    const list = [...(data.lists[store] || [])];
-    const idx = list.findIndex((it) => it.id === id);
-    if (idx === -1) return;
-    const bucket = (it) => (it.done ? "done" : isItemActive(it, todayIso) ? "active" : "upcoming");
-    const targetBucket = bucket(list[idx]);
-    let swapIdx = -1;
-    if (direction === "up") {
-      for (let i = idx - 1; i >= 0; i--) {
-        if (bucket(list[i]) === targetBucket) {
-          swapIdx = i;
-          break;
-        }
-      }
-    } else {
-      for (let i = idx + 1; i < list.length; i++) {
-        if (bucket(list[i]) === targetBucket) {
-          swapIdx = i;
-          break;
-        }
-      }
-    }
-    if (swapIdx === -1) return;
-    [list[idx], list[swapIdx]] = [list[swapIdx], list[idx]];
-    save({ ...data, lists: { ...data.lists, [store]: list } });
+  const handleItemDragEnd = (store) => (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const list = data.lists[store] || [];
+    const oldIndex = list.findIndex((it) => it.id === active.id);
+    const newIndex = list.findIndex((it) => it.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(list, oldIndex, newIndex);
+    save({ ...data, lists: { ...data.lists, [store]: reordered } });
   };
 
   const openEditItem = (store, it) => {
@@ -2028,21 +2032,27 @@ export default function HuishoudApp() {
               )}
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {currentList.length === 0 && (
-                <div style={{ fontFamily: FONT_BODY, color: "#A6AEB8", fontSize: 14, padding: "24px 4px" }}>
-                  Nog niets toegevoegd voor {activeStore}.
-                </div>
-              )}
-              {currentList
+            {(() => {
+              const displayList = currentList
                 .filter((it) => it.done || isItemActive(it, todayIso))
                 .slice()
-                .sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1))
-                .map((it) => {
+                .sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
+              const sortableIds = displayList.map((it) => it.id);
+              return (
+                <DndContext sensors={dragSensors} collisionDetection={closestCenter} onDragEnd={handleItemDragEnd(activeStore)}>
+                  <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {currentList.length === 0 && (
+                        <div style={{ fontFamily: FONT_BODY, color: "#A6AEB8", fontSize: 14, padding: "24px 4px" }}>
+                          Nog niets toegevoegd voor {activeStore}.
+                        </div>
+                      )}
+                      {displayList.map((it) => {
                   if (editingItem && editingItem.store === activeStore && editingItem.id === it.id) {
                     return (
+                      <SortableRow key={it.id} id={it.id} disabled>
+                        {() => (
                       <div
-                        key={it.id}
                         style={{ background: "#fff", borderRadius: 12, padding: 14, border: `1px solid ${theme.bg}` }}
                       >
                         <input
@@ -2094,13 +2104,16 @@ export default function HuishoudApp() {
                           </button>
                         </div>
                       </div>
+                        )}
+                      </SortableRow>
                     );
                   }
                   const daysLeft = it.validTo ? daysUntil(it.validTo, todayIso) : null;
                   const urgent = daysLeft !== null && daysLeft <= 2;
                   return (
+                    <SortableRow key={it.id} id={it.id} disabled={it.done}>
+                      {({ attributes, listeners }) => (
                     <div
-                      key={it.id}
                       onClick={() => openEditItem(activeStore, it)}
                       style={{
                         display: "flex",
@@ -2115,21 +2128,20 @@ export default function HuishoudApp() {
                     >
                       {!it.done && (
                         <div
+                          {...attributes}
+                          {...listeners}
                           onClick={(ev) => ev.stopPropagation()}
-                          style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}
+                          style={{
+                            flexShrink: 0,
+                            color: "#C7CFD8",
+                            cursor: "grab",
+                            touchAction: "none",
+                            display: "flex",
+                            alignItems: "center",
+                            padding: "4px 2px",
+                          }}
                         >
-                          <button
-                            onClick={() => moveItem(activeStore, it.id, "up")}
-                            style={{ background: "none", border: "none", color: "#C7CFD8", cursor: "pointer", padding: 0, height: 14, display: "flex", alignItems: "center" }}
-                          >
-                            <ChevronUp size={14} />
-                          </button>
-                          <button
-                            onClick={() => moveItem(activeStore, it.id, "down")}
-                            style={{ background: "none", border: "none", color: "#C7CFD8", cursor: "pointer", padding: 0, height: 14, display: "flex", alignItems: "center" }}
-                          >
-                            <ChevronDown size={14} />
-                          </button>
+                          <GripVertical size={16} />
                         </div>
                       )}
                       <button
@@ -2213,9 +2225,15 @@ export default function HuishoudApp() {
                         <X size={16} />
                       </button>
                     </div>
+                      )}
+                    </SortableRow>
                   );
                 })}
-            </div>
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              );
+            })()}
 
             {upcomingItems.length > 0 && (
               <>
