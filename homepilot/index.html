@@ -9,6 +9,13 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16.png" />
 
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Epilogue:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
     <!-- iOS: "Zet op beginscherm" gebruikt dit icoon en deze instellingen -->
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
     <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png" />
@@ -19,11 +26,18 @@
     <meta name="apple-mobile-web-app-title" content="HomePilot" />
 
     <!-- Android/Chrome themakleur (paars, past bij het icoon) -->
-    <meta name="theme-color" content="#6B4E9C" />
+    <meta name="theme-color" content="#12131D" />
 
     <style>
       html, body, #root { height: 100%; margin: 0; }
-      body { background: #F4F6F8; }
+      body { background: #12131D; }
+      button:focus-visible, input:focus-visible, select:focus-visible {
+        outline: 2px solid #8175D6;
+        outline-offset: 2px;
+      }
+      button:hover { filter: brightness(1.06); }
+      button:active { transform: translateY(1px); }
+      ::selection { background: #EEECFA; color: #17182A; }
     </style>
   </head>
   <body>
