@@ -1589,8 +1589,7 @@ export default function HuishoudApp() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button
-            onClick={() => chooseUser(user === "Emile" ? "Emily" : "Emile")}
+          <div
             style={{
               display: "flex",
               alignItems: "center",
@@ -1603,11 +1602,10 @@ export default function HuishoudApp() {
               fontFamily: FONT_BODY,
               fontSize: 13,
               fontWeight: 600,
-              cursor: "pointer",
             }}
           >
             <User size={13} /> {user}
-          </button>
+          </div>
           <button
             onClick={handleLogout}
             title="Uitloggen"
