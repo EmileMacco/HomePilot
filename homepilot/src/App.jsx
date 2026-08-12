@@ -5,6 +5,32 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+const THEME = {
+  bg: "#F5F4F9",
+  surface: "#FFFFFF",
+  surfaceAlt: "#EFEEF7",
+  border: "#E3E1EF",
+  borderStrong: "#CFCDE2",
+
+  text: "#17182A",
+  textMuted: "#6E6F88",
+  textFaint: "#9A9BB0",
+
+  accent: "#8175D6",
+  accentDeep: "#5A4CB8",
+  accentSoft: "#EEECFA",
+  accentOnDark: "#C9C2F5",
+
+  headerBg: "linear-gradient(135deg, #0F1018, #232538)",
+  headerText: "#F1F0F7",
+  headerTextMuted: "rgba(241,240,247,0.72)",
+
+  radius: 10,
+  radiusLg: 14,
+  shadowSm: "0 1px 2px rgba(20,18,45,0.06)",
+  shadowMd: "0 6px 18px rgba(20,18,45,0.10)",
+};
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 const HOUSEHOLD_ID = "homepilot";
@@ -111,7 +137,7 @@ function Barcode128({ value, height = 42 }) {
   return (
     <svg viewBox={`0 0 ${x} 40`} preserveAspectRatio="none" style={{ width: "100%", height, display: "block" }}>
       {bars.map((b, i) => (
-        <rect key={i} x={b.x} y={0} width={b.w} height={40} fill="#0F2A4A" />
+        <rect key={i} x={b.x} y={0} width={b.w} height={40} fill=THEME.text />
       ))}
     </svg>
   );
@@ -169,8 +195,8 @@ function monthGrid(d) {
   return weeks;
 }
 
-const BIRTHDAY_COLOR = { bg: "#D9A02A", text: "#FFFFFF" };
-const HOLIDAY_COLOR = { bg: "#5AA9E6", text: "#FFFFFF" };
+const BIRTHDAY_COLOR = { bg: "#C98A1E", text: "#FFFFFF" };
+const HOLIDAY_COLOR = { bg: "#3E7FC1", text: "#FFFFFF" };
 
 function colorForEvent(e) {
   if (e.isBirthday) return BIRTHDAY_COLOR;
@@ -204,7 +230,7 @@ const REPEAT_LABELS = {
 
 const STATUS_ORDER = ["te_doen", "bezig", "wacht", "klaar"];
 const STATUS_META = {
-  te_doen: { label: "Te doen", color: "#A6AEB8" },
+  te_doen: { label: "Te doen", color: THEME.textFaint },
   bezig: { label: "Bezig", color: "#2E86DE" },
   wacht: { label: "Wacht op iemand", color: "#E08A2C" },
   klaar: { label: "Klaar", color: "#2B7A4B" },
@@ -425,6 +451,7 @@ function parseICS(text) {
 
 function EventRow({ e, onRemove, onEdit, onEditBirthday, onRequestRemove }) {
   const c = colorForEvent(e);
+  const ownerColor = OWNER_COLORS[e.owner] || OWNER_COLORS.Samen;
   return (
     <div
       onClick={() => (e.isBirthday ? onEditBirthday && onEditBirthday(e.birthdayId) : onEdit(e))}
@@ -435,17 +462,16 @@ function EventRow({ e, onRemove, onEdit, onEditBirthday, onRequestRemove }) {
         background: e.isBirthday ? "#FFF9EC" : "#fff",
         borderRadius: 12,
         padding: "12px 12px",
-        border: "1px solid #EDEFF2",
-        borderLeft: `4px solid ${c.bg}`,
+        border: `1px solid ${THEME.border}`,
+        borderLeft: `5px solid ${c.bg}`,
         cursor: "pointer",
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: FONT_BODY, fontSize: 15, color: "#1E2A38", fontWeight: 500 }}>{e.title}</div>
-        <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", marginTop: 2 }}>
+        <div style={{ fontFamily: FONT_BODY, fontSize: 15, color: THEME.text, fontWeight: 500 }}>{e.title}</div>
+        <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, marginTop: 2 }}>
           {e.isBirthday ? "Verjaardag · " : e.isHoliday ? "Feestdag · " : e.allDay ? "Hele dag · " : e.time ? `${e.time}${e.endTime ? `–${e.endTime}` : ""} · ` : ""}
-          {e.endDate && e.endDate !== e.date ? `t/m ${dayLabel(e.endDate)} · ` : ""}
-          {e.owner}
+          {e.endDate && e.endDate !== e.date ? `t/m ${dayLabel(e.endDate)}` : ""}
           {e.repeat && e.repeat !== "none" ? ` · ${REPEAT_LABELS[e.repeat]}` : ""}
         </div>
         {e.location && (
@@ -460,7 +486,7 @@ function EventRow({ e, onRemove, onEdit, onEditBirthday, onRequestRemove }) {
               gap: 4,
               fontFamily: FONT_BODY,
               fontSize: 12,
-              color: "#5C6B7A",
+              color: THEME.textMuted,
               marginTop: 3,
               textDecoration: "none",
               overflow: "hidden",
@@ -488,6 +514,23 @@ function EventRow({ e, onRemove, onEdit, onEditBirthday, onRequestRemove }) {
           </div>
         )}
       </div>
+      {!e.isBirthday && (
+        <span
+          style={{
+            flexShrink: 0,
+            background: ownerColor.bg,
+            color: "#FFFFFF",
+            borderRadius: 999,
+            fontFamily: FONT_BODY,
+            fontSize: 10,
+            fontWeight: 700,
+            padding: "4px 9px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {e.owner}
+        </span>
+      )}
       {!e.isBirthday && (
         <button
           onClick={(ev) => {
@@ -523,7 +566,7 @@ function DateSelect({ value, onChange }) {
     fontSize: 13,
     padding: "10px 4px",
     borderRadius: 10,
-    border: "1px solid #D8DEE6",
+    border: `1px solid ${THEME.borderStrong}`,
     outline: "none",
     background: "#fff",
     flex: 1,
@@ -591,7 +634,7 @@ function TimeSelect({ value, onChange, placeholder }) {
     fontSize: 14,
     padding: "10px 6px",
     borderRadius: 10,
-    border: "1px solid #D8DEE6",
+    border: `1px solid ${THEME.borderStrong}`,
     outline: "none",
     background: "#fff",
     flex: 1,
@@ -610,7 +653,7 @@ function TimeSelect({ value, onChange, placeholder }) {
           </option>
         ))}
       </select>
-      <span style={{ color: "#8A96A3", fontFamily: FONT_BODY }}>:</span>
+      <span style={{ color: THEME.textMuted, fontFamily: FONT_BODY }}>:</span>
       <select value={m || ""} onChange={(e) => onChange(`${h || "00"}:${e.target.value}`)} style={selectStyle}>
         <option value="" disabled>
           mm
@@ -664,9 +707,9 @@ function QtyStepper({ qty, onChange, size = "sm" }) {
           width: dim,
           height: dim,
           borderRadius: 6,
-          border: "1px solid #D8DEE6",
+          border: `1px solid ${THEME.borderStrong}`,
           background: "#fff",
-          color: qty <= 1 ? "#D8DEE6" : "#5C6B7A",
+          color: qty <= 1 ? THEME.borderStrong : THEME.textMuted,
           fontFamily: FONT_BODY,
           fontWeight: 700,
           cursor: qty <= 1 ? "default" : "pointer",
@@ -690,9 +733,9 @@ function QtyStepper({ qty, onChange, size = "sm" }) {
           width: dim,
           height: dim,
           borderRadius: 6,
-          border: "1px solid #D8DEE6",
+          border: `1px solid ${THEME.borderStrong}`,
           background: "#fff",
-          color: "#5C6B7A",
+          color: THEME.textMuted,
           fontFamily: FONT_BODY,
           fontWeight: 700,
           cursor: "pointer",
@@ -752,11 +795,11 @@ function DayList({ dateISO, items, onRemove, onEdit, onEditBirthday, onRequestRe
   const timedItems = items.filter((e) => !e.isBirthday && !e.allDay);
   return (
     <div>
-      <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
+      <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
         {dayLabel(dateISO)}
       </div>
       {items.length === 0 ? (
-        <div style={{ fontFamily: FONT_BODY, color: "#A6AEB8", fontSize: 14, padding: "12px 2px" }}>Geen afspraken.</div>
+        <div style={{ fontFamily: FONT_BODY, color: THEME.textFaint, fontSize: 14, padding: "12px 2px" }}>Geen afspraken.</div>
       ) : (
         <>
           {allDayItems.length > 0 && (
@@ -1402,10 +1445,10 @@ export default function HuishoudApp() {
   if (!session) {
     return (
       <div style={{ ...shell, alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 26, color: "#0F2A4A", marginBottom: 4 }}>
+        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 26, color: THEME.text, marginBottom: 4 }}>
           HomePilot
         </div>
-        <div style={{ fontFamily: FONT_BODY, fontSize: 14, color: "#5C6B7A", marginBottom: 24 }}>
+        <div style={{ fontFamily: FONT_BODY, fontSize: 14, color: THEME.textMuted, marginBottom: 24 }}>
           Voer het huishoud-wachtwoord in
         </div>
         <input
@@ -1427,7 +1470,7 @@ export default function HuishoudApp() {
           disabled={authLoading || !pwInput}
           style={{
             ...smallBtn,
-            background: "#0F2A4A",
+            background: THEME.text,
             width: 240,
             opacity: authLoading || !pwInput ? 0.6 : 1,
             cursor: authLoading || !pwInput ? "not-allowed" : "pointer",
@@ -1463,10 +1506,10 @@ export default function HuishoudApp() {
   if (!user) {
     return (
       <div style={{ ...shell, alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 28, color: "#0F2A4A", marginBottom: 4 }}>
+        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 28, color: THEME.text, marginBottom: 4 }}>
           Wie ben jij?
         </div>
-        <div style={{ fontFamily: FONT_BODY, fontSize: 14, color: "#5C6B7A", marginBottom: 28 }}>
+        <div style={{ fontFamily: FONT_BODY, fontSize: 14, color: THEME.textMuted, marginBottom: 28 }}>
           Zodat we weten wie wat toevoegt
         </div>
         <div style={{ display: "flex", gap: 12 }}>
@@ -1591,26 +1634,21 @@ export default function HuishoudApp() {
           style={{
             background: "#FFF4F0",
             borderBottom: "1px solid #F3C9BC",
-            padding: "8px 16px",
+            padding: "4px 16px",
             fontFamily: FONT_BODY,
-            fontSize: 12,
+            fontSize: 11,
             color: "#8A3B1F",
             textAlign: "center",
           }}
         >
           Geen verbinding met de database.
-          {syncErrorDetail && (
-            <div style={{ fontFamily: FONT_MONO, fontSize: 10, marginTop: 3, opacity: 0.85, wordBreak: "break-word" }}>
-              {syncErrorDetail}
-            </div>
-          )}
         </div>
       )}
 
       <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "16px 16px 90px" }}>
         {tab === "home" && (
           <>
-            <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
+            <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
               Boodschappen
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
@@ -1633,8 +1671,8 @@ export default function HuishoudApp() {
                       background: "#fff",
                       borderRadius: 12,
                       padding: "13px 14px",
-                      border: `1px solid ${hasUrgent ? "#F3C9BC" : "#EDEFF2"}`,
-                      borderLeft: `4px solid ${c.bg}`,
+                      border: `1px solid ${hasUrgent ? "#F3C9BC" : THEME.border}`,
+                      borderLeft: `5px solid ${c.bg}`,
                       cursor: "pointer",
                       textAlign: "left",
                     }}
@@ -1658,7 +1696,7 @@ export default function HuishoudApp() {
               })}
             </div>
 
-            <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
+            <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
               Taken
             </div>
             {(() => {
@@ -1675,7 +1713,7 @@ export default function HuishoudApp() {
                     background: "#fff",
                     borderRadius: 12,
                     padding: "13px 14px",
-                    border: `1px solid ${hasUrgentTodo ? "#F3C9BC" : "#EDEFF2"}`,
+                    border: `1px solid ${hasUrgentTodo ? "#F3C9BC" : THEME.border}`,
                     cursor: "pointer",
                     textAlign: "left",
                     marginBottom: 20,
@@ -1722,8 +1760,8 @@ export default function HuishoudApp() {
                           background: "#fff",
                           borderRadius: 12,
                           padding: "12px 12px",
-                          border: `1px solid ${urgent ? "#F3C9BC" : "#EDEFF2"}`,
-                          borderLeft: `4px solid ${meta.color}`,
+                          border: `1px solid ${urgent ? "#F3C9BC" : THEME.border}`,
+                          borderLeft: `5px solid ${meta.color}`,
                           cursor: "pointer",
                           textAlign: "left",
                           width: "100%",
@@ -1732,7 +1770,7 @@ export default function HuishoudApp() {
                         <span style={{ fontFamily: FONT_BODY, fontSize: 14, color: "#1E2A38", fontWeight: 500, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {t.title}
                         </span>
-                        <span style={{ fontFamily: FONT_BODY, fontSize: 12, color: urgent ? "#C8272A" : "#8A96A3", flexShrink: 0 }}>
+                        <span style={{ fontFamily: FONT_BODY, fontSize: 12, color: urgent ? "#C8272A" : THEME.textMuted, flexShrink: 0 }}>
                           {daysLeft === 0 ? "Vandaag" : daysLeft === 1 ? "Morgen" : `over ${daysLeft} dagen`}
                         </span>
                       </button>
@@ -1742,7 +1780,7 @@ export default function HuishoudApp() {
               );
             })()}
 
-            <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
+            <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
               Vandaag
             </div>
             {(() => {
@@ -1750,7 +1788,7 @@ export default function HuishoudApp() {
               const todaysItems = getDayItems(todayIso);
               if (todaysItems.length === 0) {
                 return (
-                  <div style={{ fontFamily: FONT_BODY, color: "#A6AEB8", fontSize: 14, padding: "4px 2px 0" }}>
+                  <div style={{ fontFamily: FONT_BODY, color: THEME.textFaint, fontSize: 14, padding: "4px 2px 0" }}>
                     Geen afspraken vandaag.
                   </div>
                 );
@@ -1817,19 +1855,34 @@ export default function HuishoudApp() {
                         background: "#fff",
                         borderRadius: 12,
                         padding: "12px 12px",
-                        border: "1px solid #EDEFF2",
-                        borderLeft: `4px solid ${(OWNER_COLORS[e.owner] || OWNER_COLORS.Samen).bg}`,
+                        border: `1px solid ${THEME.border}`,
+                        borderLeft: `5px solid ${(OWNER_COLORS[e.owner] || OWNER_COLORS.Samen).bg}`,
                         cursor: "pointer",
                         textAlign: "left",
                         width: "100%",
                       }}
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: FONT_BODY, fontSize: 15, color: "#1E2A38", fontWeight: 500 }}>{e.title}</div>
-                        <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", marginTop: 2 }}>
+                        <div style={{ fontFamily: FONT_BODY, fontSize: 15, color: THEME.text, fontWeight: 500 }}>{e.title}</div>
+                        <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, marginTop: 2 }}>
                           {e.time || "Hele dag"}
                         </div>
                       </div>
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          background: (OWNER_COLORS[e.owner] || OWNER_COLORS.Samen).bg,
+                          color: "#FFFFFF",
+                          borderRadius: 999,
+                          fontFamily: FONT_BODY,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: "4px 9px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {e.owner}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -1846,7 +1899,7 @@ export default function HuishoudApp() {
               if (upcoming.length === 0) return null;
               return (
                 <>
-                  <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, marginTop: 20, marginBottom: 8, textTransform: "uppercase" }}>
+                  <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginTop: 20, marginBottom: 8, textTransform: "uppercase" }}>
                     Verjaardagen
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1862,15 +1915,15 @@ export default function HuishoudApp() {
                           background: "#FFF9EC",
                           borderRadius: 12,
                           padding: "12px 12px",
-                          border: "1px solid #EDEFF2",
-                          borderLeft: `4px solid ${BIRTHDAY_COLOR.bg}`,
+                          border: `1px solid ${THEME.border}`,
+                          borderLeft: `5px solid ${BIRTHDAY_COLOR.bg}`,
                           cursor: "pointer",
                           textAlign: "left",
                           width: "100%",
                         }}
                       >
                         <span style={{ fontFamily: FONT_BODY, fontSize: 15, color: "#1E2A38", fontWeight: 500 }}>{b.title}</span>
-                        <span style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", flexShrink: 0, marginLeft: 8 }}>
+                        <span style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, flexShrink: 0, marginLeft: 8 }}>
                           {b.daysAway === 0 ? "Vandaag" : b.daysAway === 1 ? "Morgen" : `over ${b.daysAway} dagen`}
                         </span>
                       </button>
@@ -1902,9 +1955,9 @@ export default function HuishoudApp() {
                       fontSize: 13,
                       padding: "8px 14px",
                       borderRadius: 999,
-                      border: active ? "none" : "1px solid #D8DEE6",
+                      border: active ? "none" : `1px solid ${THEME.borderStrong}`,
                       background: active ? c.bg : "#fff",
-                      color: active ? c.text : "#5C6B7A",
+                      color: active ? c.text : THEME.textMuted,
                       cursor: "pointer",
                       whiteSpace: "nowrap",
                     }}
@@ -1934,7 +1987,7 @@ export default function HuishoudApp() {
                   borderRadius: 999,
                   border: "1px dashed #B8C2CC",
                   background: "#fff",
-                  color: "#5C6B7A",
+                  color: THEME.textMuted,
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
@@ -1971,7 +2024,7 @@ export default function HuishoudApp() {
                   </button>
                   <button
                     onClick={() => setStoreToDelete(null)}
-                    style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6", padding: "6px 12px", fontSize: 12 }}
+                    style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}`, padding: "6px 12px", fontSize: 12 }}
                   >
                     Annuleren
                   </button>
@@ -1980,7 +2033,7 @@ export default function HuishoudApp() {
             )}
 
             {showAddStore && (
-              <div style={{ background: "#fff", borderRadius: 12, padding: 12, border: "1px solid #EDEFF2", marginBottom: 14 }}>
+              <div style={{ background: "#fff", borderRadius: 12, padding: 12, border: `1px solid ${THEME.border}`, marginBottom: 14 }}>
                 <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                   <input
                     autoFocus
@@ -1991,7 +2044,7 @@ export default function HuishoudApp() {
                     style={{ ...inputStyle, flex: 1 }}
                   />
                 </div>
-                <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 6 }}>
+                <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 6 }}>
                   Kleur
                 </div>
                 <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
@@ -2021,7 +2074,7 @@ export default function HuishoudApp() {
                       setNewStoreName("");
                       setNewStoreColor(STORE_COLOR_PALETTE[0]);
                     }}
-                    style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6" }}
+                    style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}` }}
                   >
                     Annuleren
                   </button>
@@ -2031,7 +2084,7 @@ export default function HuishoudApp() {
 
             {(data.favorites?.[activeStore] || []).length > 0 && (
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, marginBottom: 6 }}>
+                <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginBottom: 6 }}>
                   FAVORIETEN
                 </div>
                 <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
@@ -2071,7 +2124,7 @@ export default function HuishoudApp() {
             )}
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3 }}>
+              <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3 }}>
                 {openCount === 0 ? "NIETS MEER NODIG" : `${openCount} OP DE LIJST`}
               </div>
               {currentList.some((it) => it.done) && (
@@ -2107,7 +2160,7 @@ export default function HuishoudApp() {
                   <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {currentList.length === 0 && (
-                        <div style={{ fontFamily: FONT_BODY, color: "#A6AEB8", fontSize: 14, padding: "24px 4px" }}>
+                        <div style={{ fontFamily: FONT_BODY, color: THEME.textFaint, fontSize: 14, padding: "24px 4px" }}>
                           Nog niets toegevoegd voor {activeStore}.
                         </div>
                       )}
@@ -2125,7 +2178,7 @@ export default function HuishoudApp() {
                           style={{ ...inputStyle, width: "100%", marginBottom: 8 }}
                         />
                         <div style={{ marginBottom: 10 }}>
-                          <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 4 }}>
+                          <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                             Pas kopen vanaf
                           </div>
                           <DateSelect
@@ -2134,7 +2187,7 @@ export default function HuishoudApp() {
                           />
                         </div>
                         <div style={{ marginBottom: 10 }}>
-                          <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 4 }}>
+                          <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                             In de bonus t/m
                           </div>
                           <DateSelect
@@ -2143,7 +2196,7 @@ export default function HuishoudApp() {
                           />
                         </div>
                         <div style={{ marginBottom: 4 }}>
-                          <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 4 }}>
+                          <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                             Aantal
                           </div>
                           <QtyStepper
@@ -2163,7 +2216,7 @@ export default function HuishoudApp() {
                           >
                             Opslaan
                           </button>
-                          <button onClick={closeEditItem} style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6" }}>
+                          <button onClick={closeEditItem} style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}` }}>
                             Annuleren
                           </button>
                         </div>
@@ -2186,7 +2239,7 @@ export default function HuishoudApp() {
                         background: "#fff",
                         borderRadius: 12,
                         padding: "12px 12px",
-                        border: `1px solid ${urgent && !it.done ? "#F3C9BC" : "#EDEFF2"}`,
+                        border: `1px solid ${urgent && !it.done ? "#F3C9BC" : THEME.border}`,
                         cursor: "pointer",
                       }}
                     >
@@ -2252,8 +2305,8 @@ export default function HuishoudApp() {
                                 fontFamily: FONT_BODY,
                                 fontSize: 11,
                                 fontWeight: 700,
-                                color: urgent ? "#C8272A" : "#8A96A3",
-                                border: `1px solid ${urgent ? "#C8272A" : "#D8DEE6"}`,
+                                color: urgent ? "#C8272A" : THEME.textMuted,
+                                border: `1px solid ${urgent ? "#C8272A" : THEME.borderStrong}`,
                                 borderRadius: 999,
                                 padding: "1px 7px",
                               }}
@@ -2301,7 +2354,7 @@ export default function HuishoudApp() {
 
             {upcomingItems.length > 0 && (
               <>
-                <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, marginTop: 18, marginBottom: 8, textTransform: "uppercase" }}>
+                <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginTop: 18, marginBottom: 8, textTransform: "uppercase" }}>
                   Binnenkort in de bonus
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -2321,7 +2374,7 @@ export default function HuishoudApp() {
                               style={{ ...inputStyle, width: "100%", marginBottom: 8 }}
                             />
                             <div style={{ marginBottom: 10 }}>
-                              <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 4 }}>
+                              <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                                 Pas kopen vanaf
                               </div>
                               <DateSelect
@@ -2330,7 +2383,7 @@ export default function HuishoudApp() {
                               />
                             </div>
                             <div style={{ marginBottom: 10 }}>
-                              <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 4 }}>
+                              <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                                 In de bonus t/m
                               </div>
                               <DateSelect
@@ -2339,7 +2392,7 @@ export default function HuishoudApp() {
                               />
                             </div>
                             <div style={{ marginBottom: 4 }}>
-                              <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 4 }}>
+                              <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                                 Aantal
                               </div>
                               <QtyStepper
@@ -2356,7 +2409,7 @@ export default function HuishoudApp() {
                               >
                                 Opslaan
                               </button>
-                              <button onClick={closeEditItem} style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6" }}>
+                              <button onClick={closeEditItem} style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}` }}>
                                 Annuleren
                               </button>
                             </div>
@@ -2374,12 +2427,12 @@ export default function HuishoudApp() {
                             background: "#F5F6F8",
                             borderRadius: 12,
                             padding: "12px 12px",
-                            border: "1px solid #EDEFF2",
+                            border: `1px solid ${THEME.border}`,
                             cursor: "pointer",
                           }}
                         >
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontFamily: FONT_BODY, fontSize: 15, color: "#8A96A3" }}>
+                            <div style={{ fontFamily: FONT_BODY, fontSize: 15, color: THEME.textMuted }}>
                               {it.text}
                               {(it.qty || 1) > 1 ? ` (${it.qty}×)` : ""}
                             </div>
@@ -2422,13 +2475,13 @@ export default function HuishoudApp() {
         {tab === "klantkaarten" && (
           <>
             {data.cards.length > 0 && (
-              <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", marginBottom: 10 }}>
+              <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, marginBottom: 10 }}>
                 Tik op een kaart om 'm groot te tonen en te scannen.
               </div>
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {data.cards.length === 0 && !showAddCard && (
-                <div style={{ fontFamily: FONT_BODY, color: "#A6AEB8", fontSize: 14, padding: "24px 4px" }}>
+                <div style={{ fontFamily: FONT_BODY, color: THEME.textFaint, fontSize: 14, padding: "24px 4px" }}>
                   Nog geen klantkaarten toegevoegd.
                 </div>
               )}
@@ -2475,7 +2528,7 @@ export default function HuishoudApp() {
             </div>
 
             {showAddCard ? (
-              <div style={{ marginTop: 14, background: "#fff", borderRadius: 14, padding: 16, border: "1px solid #EDEFF2" }}>
+              <div style={{ marginTop: 14, background: "#fff", borderRadius: 14, padding: 16, border: `1px solid ${THEME.border}` }}>
                 <input
                   value={newCard.store}
                   onChange={(e) => setNewCard({ ...newCard, store: e.target.value })}
@@ -2498,7 +2551,7 @@ export default function HuishoudApp() {
                         height: 24,
                         borderRadius: 999,
                         background: col,
-                        border: newCard.color === col ? "2px solid #0F2A4A" : "2px solid transparent",
+                        border: newCard.color === col ? `2px solid ${THEME.text}` : "2px solid transparent",
                         cursor: "pointer",
                       }}
                     />
@@ -2508,7 +2561,7 @@ export default function HuishoudApp() {
                   <button onClick={addCard} style={{ ...smallBtn, background: theme.bg, flex: 1 }}>Kaart opslaan</button>
                   <button
                     onClick={() => setShowAddCard(false)}
-                    style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6" }}
+                    style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}` }}
                   >
                     Annuleren
                   </button>
@@ -2524,7 +2577,7 @@ export default function HuishoudApp() {
                   borderRadius: 12,
                   border: "1px dashed #B8C2CC",
                   background: "#fff",
-                  color: "#5C6B7A",
+                  color: THEME.textMuted,
                   fontFamily: FONT_BODY,
                   fontWeight: 600,
                   fontSize: 14,
@@ -2544,7 +2597,7 @@ export default function HuishoudApp() {
         {tab === "taken" && (
           <>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3 }}>
+              <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3 }}>
                 {(data.todos || []).filter((t) => getTodoStatus(t) !== "klaar").length === 0 ? "NIETS TE DOEN" : `${(data.todos || []).filter((t) => getTodoStatus(t) !== "klaar").length} OPEN`}
               </div>
               {(data.todos || []).some((t) => getTodoStatus(t) === "klaar") && (
@@ -2571,7 +2624,7 @@ export default function HuishoudApp() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
               {(data.todos || []).length === 0 && (
-                <div style={{ fontFamily: FONT_BODY, color: "#A6AEB8", fontSize: 14, padding: "12px 2px" }}>
+                <div style={{ fontFamily: FONT_BODY, color: THEME.textFaint, fontSize: 14, padding: "12px 2px" }}>
                   Nog geen taken toegevoegd.
                 </div>
               )}
@@ -2601,8 +2654,8 @@ export default function HuishoudApp() {
                         background: "#fff",
                         borderRadius: 12,
                         padding: "12px 12px",
-                        border: `1px solid ${urgent ? "#F3C9BC" : "#EDEFF2"}`,
-                        borderLeft: `4px solid ${c.bg}`,
+                        border: `1px solid ${urgent ? "#F3C9BC" : THEME.border}`,
+                        borderLeft: `5px solid ${c.bg}`,
                         cursor: "pointer",
                       }}
                     >
@@ -2657,8 +2710,8 @@ export default function HuishoudApp() {
                                 fontFamily: FONT_BODY,
                                 fontSize: 11,
                                 fontWeight: 700,
-                                color: urgent ? "#C8272A" : "#8A96A3",
-                                border: `1px solid ${urgent ? "#C8272A" : "#D8DEE6"}`,
+                                color: urgent ? "#C8272A" : THEME.textMuted,
+                                border: `1px solid ${urgent ? "#C8272A" : THEME.borderStrong}`,
                                 borderRadius: 999,
                                 padding: "1px 8px",
                               }}
@@ -2668,7 +2721,7 @@ export default function HuishoudApp() {
                             </span>
                           )}
                           {(t.owner || t.pickedUpBy) && (
-                            <span style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3" }}>
+                            <span style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted }}>
                               {t.owner}
                               {t.pickedUpBy ? ` · opgepakt door ${t.pickedUpBy}` : ""}
                             </span>
@@ -2690,8 +2743,8 @@ export default function HuishoudApp() {
             </div>
 
             {showAddTodo ? (
-              <div style={{ background: "#fff", borderRadius: 14, padding: 16, border: "1px solid #EDEFF2" }}>
-                <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, marginBottom: 10, textTransform: "uppercase" }}>
+              <div style={{ background: "#fff", borderRadius: 14, padding: 16, border: `1px solid ${THEME.border}` }}>
+                <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginBottom: 10, textTransform: "uppercase" }}>
                   {editingTodoId ? "Taak bewerken" : "Nieuwe taak"}
                 </div>
                 <input
@@ -2705,7 +2758,7 @@ export default function HuishoudApp() {
                 </div>
                 {newTodo.date && (
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 4 }}>
+                    <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                       Tijd (optioneel)
                     </div>
                     <TimeSelect value={newTodo.time} onChange={(v) => setNewTodo({ ...newTodo, time: v })} />
@@ -2725,9 +2778,9 @@ export default function HuishoudApp() {
                           fontSize: 12,
                           padding: "7px 12px",
                           borderRadius: 999,
-                          border: active ? "none" : "1px solid #D8DEE6",
+                          border: active ? "none" : `1px solid ${THEME.borderStrong}`,
                           background: active ? c.bg : "#fff",
-                          color: active ? c.text : "#5C6B7A",
+                          color: active ? c.text : THEME.textMuted,
                           cursor: "pointer",
                         }}
                       >
@@ -2737,7 +2790,7 @@ export default function HuishoudApp() {
                   })}
                 </div>
 
-                <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 4 }}>
+                <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                   Status
                 </div>
                 <div style={{ display: "flex", gap: 6, marginBottom: 12, overflowX: "auto", paddingBottom: 2 }}>
@@ -2776,7 +2829,7 @@ export default function HuishoudApp() {
 
                 {newTodo.status !== "te_doen" && (
                   <>
-                    <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 4 }}>
+                    <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                       Opgepakt door
                     </div>
                     <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
@@ -2793,9 +2846,9 @@ export default function HuishoudApp() {
                               fontSize: 12,
                               padding: "7px 12px",
                               borderRadius: 999,
-                              border: active ? "none" : "1px solid #D8DEE6",
-                              background: active ? (c ? c.bg : "#5C6B7A") : "#fff",
-                              color: active ? "#fff" : "#5C6B7A",
+                              border: active ? "none" : `1px solid ${THEME.borderStrong}`,
+                              background: active ? (c ? c.bg : THEME.textMuted) : "#fff",
+                              color: active ? "#fff" : THEME.textMuted,
                               cursor: "pointer",
                             }}
                           >
@@ -2827,7 +2880,7 @@ export default function HuishoudApp() {
                   </button>
                   <button
                     onClick={closeTodoForm}
-                    style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6" }}
+                    style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}` }}
                   >
                     Annuleren
                   </button>
@@ -2861,7 +2914,7 @@ export default function HuishoudApp() {
                   borderRadius: 12,
                   border: "1px dashed #B8C2CC",
                   background: "#fff",
-                  color: "#5C6B7A",
+                  color: THEME.textMuted,
                   fontFamily: FONT_BODY,
                   fontWeight: 600,
                   fontSize: 14,
@@ -2882,7 +2935,7 @@ export default function HuishoudApp() {
           <>
             <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, marginBottom: 14 }}>
               {["Alles", "Emile", "Emily", "Samen"].map((f) => {
-                const c = f === "Alles" ? { bg: "#0F2A4A", text: "#fff" } : OWNER_COLORS[f];
+                const c = f === "Alles" ? { bg: THEME.text, text: "#fff" } : OWNER_COLORS[f];
                 const active = agendaFilter === f;
                 return (
                   <button
@@ -2895,9 +2948,9 @@ export default function HuishoudApp() {
                       fontSize: 13,
                       padding: "8px 14px",
                       borderRadius: 999,
-                      border: active ? "none" : "1px solid #D8DEE6",
+                      border: active ? "none" : `1px solid ${THEME.borderStrong}`,
                       background: active ? c.bg : "#fff",
-                      color: active ? c.text : "#5C6B7A",
+                      color: active ? c.text : THEME.textMuted,
                       cursor: "pointer",
                       whiteSpace: "nowrap",
                     }}
@@ -2909,7 +2962,7 @@ export default function HuishoudApp() {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ display: "flex", gap: 2, background: "#EDEFF2", borderRadius: 10, padding: 3 }}>
+              <div style={{ display: "flex", gap: 2, background: THEME.border, borderRadius: 10, padding: 3 }}>
                 {["dag", "week", "maand"].map((v) => (
                   <button
                     key={v}
@@ -2923,7 +2976,7 @@ export default function HuishoudApp() {
                       border: "none",
                       cursor: "pointer",
                       background: agendaView === v ? "#fff" : "transparent",
-                      color: agendaView === v ? "#0F2A4A" : "#8A96A3",
+                      color: agendaView === v ? THEME.text : THEME.textMuted,
                       textTransform: "capitalize",
                       boxShadow: agendaView === v ? "0 1px 3px rgba(15,42,74,0.15)" : "none",
                     }}
@@ -2935,7 +2988,7 @@ export default function HuishoudApp() {
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                 <button
                   onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                  style={{ fontFamily: FONT_BODY, fontSize: 12, fontWeight: 600, color: "#8A96A3", background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
+                  style={{ fontFamily: FONT_BODY, fontSize: 12, fontWeight: 600, color: THEME.textMuted, background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
                 >
                   Importeren
                 </button>
@@ -2957,7 +3010,7 @@ export default function HuishoudApp() {
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 18, marginBottom: 14 }}>
               <button onClick={() => shiftCursor(-1)} style={navArrow}>‹</button>
-              <div style={{ fontFamily: FONT_DISPLAY, fontSize: 15, color: "#0F2A4A", textTransform: "capitalize", minWidth: 0, textAlign: "center" }}>
+              <div style={{ fontFamily: FONT_DISPLAY, fontSize: 15, color: THEME.text, textTransform: "capitalize", minWidth: 0, textAlign: "center" }}>
                 {periodLabel}
               </div>
               <button onClick={() => shiftCursor(1)} style={navArrow}>›</button>
@@ -2983,7 +3036,7 @@ export default function HuishoudApp() {
                     return (
                       <div key={iso} style={{ marginBottom: 16 }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                          <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, textTransform: "uppercase" }}>
+                          <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, textTransform: "uppercase" }}>
                             {dayLabel(iso)}
                           </div>
                           <button
@@ -3021,7 +3074,7 @@ export default function HuishoudApp() {
                   <>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 4 }}>
                       {WEEKDAYS_SHORT.map((w) => (
-                        <div key={w} style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#A6AEB8", fontWeight: 600, textAlign: "center", padding: "4px 0" }}>
+                        <div key={w} style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textFaint, fontWeight: 600, textAlign: "center", padding: "4px 0" }}>
                           {w}
                         </div>
                       ))}
@@ -3133,10 +3186,10 @@ export default function HuishoudApp() {
               >
               <div
                 onClick={(ev) => ev.stopPropagation()}
-                style={{ background: "#fff", borderRadius: 16, padding: 16, border: "1px solid #EDEFF2", width: "100%", maxHeight: "88%", overflowY: "auto", boxShadow: "0 -12px 40px rgba(15,42,74,0.3)" }}
+                style={{ background: "#fff", borderRadius: 16, padding: 16, border: `1px solid ${THEME.border}`, width: "100%", maxHeight: "88%", overflowY: "auto", boxShadow: "0 -12px 40px rgba(15,42,74,0.3)" }}
               >
                 {editingId || editingBirthdayId ? (
-                  <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", fontWeight: 600, letterSpacing: 0.3, marginBottom: 12, textTransform: "uppercase" }}>
+                  <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginBottom: 12, textTransform: "uppercase" }}>
                     {eventFormType === "afspraak" ? "Afspraak bewerken" : "Verjaardag bewerken"}
                   </div>
                 ) : (
@@ -3165,7 +3218,7 @@ export default function HuishoudApp() {
                               flexShrink: 0,
                             }}
                           />
-                          <span style={{ fontFamily: FONT_BODY, fontSize: 13, fontWeight: 600, color: active ? "#1E2A38" : "#8A96A3" }}>
+                          <span style={{ fontFamily: FONT_BODY, fontSize: 13, fontWeight: 600, color: active ? "#1E2A38" : THEME.textMuted }}>
                             {t.label}
                           </span>
                         </button>
@@ -3186,7 +3239,7 @@ export default function HuishoudApp() {
                       <DateSelect value={newEvent.date} onChange={(v) => setNewEvent({ ...newEvent, date: v })} />
                     </div>
                     <div style={{ marginBottom: 10 }}>
-                      <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 4 }}>
+                      <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                         T/m (optioneel, voor meerdaagse afspraken zoals vakanties)
                       </div>
                       <DateSelect value={newEvent.endDate} onChange={(v) => setNewEvent({ ...newEvent, endDate: v })} />
@@ -3217,13 +3270,13 @@ export default function HuishoudApp() {
                     {!newEvent.allDay && (
                       <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginBottom: 10 }}>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 4 }}>
+                          <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                             Begintijd
                           </div>
                           <TimeSelect value={newEvent.time} onChange={(v) => setNewEvent({ ...newEvent, time: v })} />
                         </div>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 4 }}>
+                          <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                             Eindtijd
                           </div>
                           <TimeSelect value={newEvent.endTime} onChange={(v) => setNewEvent({ ...newEvent, endTime: v })} />
@@ -3245,9 +3298,9 @@ export default function HuishoudApp() {
                               fontSize: 12,
                               padding: "7px 12px",
                               borderRadius: 999,
-                              border: active ? "none" : "1px solid #D8DEE6",
+                              border: active ? "none" : `1px solid ${THEME.borderStrong}`,
                               background: active ? c.bg : "#fff",
-                              color: active ? c.text : "#5C6B7A",
+                              color: active ? c.text : THEME.textMuted,
                               cursor: "pointer",
                             }}
                           >
@@ -3257,7 +3310,7 @@ export default function HuishoudApp() {
                       })}
                     </div>
 
-                    <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 4 }}>
+                    <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                       Herhalen
                     </div>
                     <div style={{ display: "flex", gap: 6, marginBottom: 10, overflowX: "auto", paddingBottom: 2 }}>
@@ -3280,9 +3333,9 @@ export default function HuishoudApp() {
                               fontSize: 12,
                               padding: "7px 12px",
                               borderRadius: 999,
-                              border: active ? "none" : "1px solid #D8DEE6",
-                              background: active ? "#0F2A4A" : "#fff",
-                              color: active ? "#fff" : "#5C6B7A",
+                              border: active ? "none" : `1px solid ${THEME.borderStrong}`,
+                              background: active ? THEME.text : "#fff",
+                              color: active ? "#fff" : THEME.textMuted,
                               cursor: "pointer",
                               whiteSpace: "nowrap",
                             }}
@@ -3363,7 +3416,7 @@ export default function HuishoudApp() {
                                 setShowSaveLocation(false);
                                 setNewLocationLabel("");
                               }}
-                              style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6", fontSize: 12, padding: "6px 10px" }}
+                              style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}`, fontSize: 12, padding: "6px 10px" }}
                             >
                               Annuleren
                             </button>
@@ -3377,7 +3430,7 @@ export default function HuishoudApp() {
                               gap: 4,
                               background: "none",
                               border: "none",
-                              color: "#8A96A3",
+                              color: THEME.textMuted,
                               fontFamily: FONT_BODY,
                               fontSize: 12,
                               fontWeight: 600,
@@ -3420,7 +3473,7 @@ export default function HuishoudApp() {
                       </button>
                       <button
                         onClick={closeEventForm}
-                        style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6" }}
+                        style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}` }}
                       >
                         Annuleren
                       </button>
@@ -3447,7 +3500,7 @@ export default function HuishoudApp() {
                               </button>
                               <button
                                 onClick={() => setConfirmDeleteChoice(false)}
-                                style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6", fontSize: 12, padding: "8px 10px" }}
+                                style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}`, fontSize: 12, padding: "8px 10px" }}
                               >
                                 Annuleren
                               </button>
@@ -3541,7 +3594,7 @@ export default function HuishoudApp() {
                       </button>
                       <button
                         onClick={closeEventForm}
-                        style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6" }}
+                        style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}` }}
                       >
                         Annuleren
                       </button>
@@ -3579,7 +3632,7 @@ export default function HuishoudApp() {
                   borderRadius: 12,
                   border: "1px dashed #B8C2CC",
                   background: "#fff",
-                  color: "#5C6B7A",
+                  color: THEME.textMuted,
                   fontFamily: FONT_BODY,
                   fontWeight: 600,
                   fontSize: 14,
@@ -3605,7 +3658,7 @@ export default function HuishoudApp() {
               onChange={(e) => setNewItem(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addItem()}
               placeholder={`Toevoegen aan ${activeStore}...`}
-              style={{ ...inputStyle, flex: 1, border: "none", background: "#F4F6F8" }}
+              style={{ ...inputStyle, flex: 1, border: "none", background: THEME.bg }}
             />
             <button onClick={addItem} style={{ ...smallBtn, background: theme.bg, width: 44, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Plus size={18} />
@@ -3718,23 +3771,23 @@ export default function HuishoudApp() {
           style={{
             position: "absolute",
             inset: 0,
-            background: "#F4F6F8",
+            background: THEME.bg,
             display: "flex",
             flexDirection: "column",
             zIndex: 30,
           }}
         >
-          <div style={{ padding: "20px 18px 12px", borderBottom: "1px solid #EDEFF2", background: "#fff" }}>
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 18, color: "#0F2A4A", marginBottom: 4 }}>
+          <div style={{ padding: "20px 18px 12px", borderBottom: `1px solid ${THEME.border}`, background: "#fff" }}>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 18, color: THEME.text, marginBottom: 4 }}>
               Agenda importeren
             </div>
-            <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3" }}>
+            <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted }}>
               {importFileName} · {importParsed.length} items gevonden
             </div>
           </div>
 
-          <div style={{ padding: "12px 18px", background: "#fff", borderBottom: "1px solid #EDEFF2" }}>
-            <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: "#8A96A3", fontWeight: 600, marginBottom: 6 }}>
+          <div style={{ padding: "12px 18px", background: "#fff", borderBottom: `1px solid ${THEME.border}` }}>
+            <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 6 }}>
               Toewijzen aan
             </div>
             <div style={{ display: "flex", gap: 6 }}>
@@ -3751,9 +3804,9 @@ export default function HuishoudApp() {
                       fontSize: 12,
                       padding: "7px 12px",
                       borderRadius: 999,
-                      border: active ? "none" : "1px solid #D8DEE6",
+                      border: active ? "none" : `1px solid ${THEME.borderStrong}`,
                       background: active ? c.bg : "#fff",
-                      color: active ? c.text : "#5C6B7A",
+                      color: active ? c.text : THEME.textMuted,
                       cursor: "pointer",
                     }}
                   >
@@ -3766,7 +3819,7 @@ export default function HuishoudApp() {
 
           <div style={{ flex: 1, overflowY: "auto", padding: "12px 18px" }}>
             {importParsed.length === 0 ? (
-              <div style={{ fontFamily: FONT_BODY, color: "#A6AEB8", fontSize: 14, padding: "24px 4px" }}>
+              <div style={{ fontFamily: FONT_BODY, color: THEME.textFaint, fontSize: 14, padding: "24px 4px" }}>
                 Geen afspraken gevonden in dit bestand.
               </div>
             ) : (
@@ -3781,7 +3834,7 @@ export default function HuishoudApp() {
                       background: "#fff",
                       borderRadius: 12,
                       padding: "10px 12px",
-                      border: "1px solid #EDEFF2",
+                      border: `1px solid ${THEME.border}`,
                     }}
                   >
                     <button
@@ -3804,7 +3857,7 @@ export default function HuishoudApp() {
                     </button>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: FONT_BODY, fontSize: 14, color: "#1E2A38", fontWeight: 500 }}>{ev.title}</div>
-                      <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: "#8A96A3", marginTop: 2 }}>
+                      <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, marginTop: 2 }}>
                         {ev.date.startsWith("1604-")
                           ? `${Number(ev.date.slice(8, 10))} ${MONTHS_FULL[Number(ev.date.slice(5, 7)) - 1]}`
                           : dayLabel(ev.date)}
@@ -3828,9 +3881,9 @@ export default function HuishoudApp() {
                                   fontSize: 11,
                                   padding: "3px 9px",
                                   borderRadius: 999,
-                                  border: active ? "none" : "1px solid #D8DEE6",
+                                  border: active ? "none" : `1px solid ${THEME.borderStrong}`,
                                   background: active ? (t.key === "verjaardag" ? BIRTHDAY_COLOR.bg : theme.bg) : "#fff",
-                                  color: active ? "#fff" : "#8A96A3",
+                                  color: active ? "#fff" : THEME.textMuted,
                                   cursor: "pointer",
                                 }}
                               >
@@ -3847,14 +3900,14 @@ export default function HuishoudApp() {
             )}
           </div>
 
-          <div style={{ padding: "12px 18px 20px", background: "#fff", borderTop: "1px solid #EDEFF2", display: "flex", gap: 8 }}>
+          <div style={{ padding: "12px 18px 20px", background: "#fff", borderTop: `1px solid ${THEME.border}`, display: "flex", gap: 8 }}>
             <button
               onClick={confirmImport}
               style={{ ...smallBtn, background: theme.bg, flex: 1 }}
             >
               {Object.values(importSelected).filter(Boolean).length} items importeren
             </button>
-            <button onClick={cancelImport} style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6" }}>
+            <button onClick={cancelImport} style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}` }}>
               Annuleren
             </button>
           </div>
@@ -3879,10 +3932,10 @@ export default function HuishoudApp() {
             onClick={(ev) => ev.stopPropagation()}
             style={{ background: "#fff", borderRadius: 16, padding: 20, width: "100%", maxWidth: 320, boxShadow: "0 12px 40px rgba(15,42,74,0.3)" }}
           >
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 17, color: "#0F2A4A", marginBottom: 6 }}>
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 17, color: THEME.text, marginBottom: 6 }}>
               Afspraak verwijderen?
             </div>
-            <div style={{ fontFamily: FONT_BODY, fontSize: 14, color: "#5C6B7A", marginBottom: 18 }}>
+            <div style={{ fontFamily: FONT_BODY, fontSize: 14, color: THEME.textMuted, marginBottom: 18 }}>
               Weet je zeker dat je "{confirmRemoveEvent.title}" wilt verwijderen?
             </div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -3891,7 +3944,7 @@ export default function HuishoudApp() {
               </button>
               <button
                 onClick={() => setConfirmRemoveEvent(null)}
-                style={{ ...smallBtn, background: "#fff", color: "#5C6B7A", border: "1px solid #D8DEE6", flex: 1 }}
+                style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}`, flex: 1 }}
               >
                 Annuleren
               </button>
@@ -3904,8 +3957,8 @@ export default function HuishoudApp() {
   );
 }
 
-const FONT_DISPLAY = "'Fraunces', Georgia, serif";
-const FONT_BODY = "'Inter', system-ui, sans-serif";
+const FONT_DISPLAY = "'Epilogue', system-ui, sans-serif";
+const FONT_BODY = "'Manrope', system-ui, sans-serif";
 const FONT_MONO = "'IBM Plex Mono', monospace";
 
 const shell = {
@@ -3913,20 +3966,37 @@ const shell = {
   maxWidth: 420,
   height: "100dvh",
   margin: "0 auto",
-  background: "#F4F6F8",
+  background: THEME.bg,
   display: "flex",
   flexDirection: "column",
   position: "relative",
   overflow: "hidden",
   fontFamily: FONT_BODY,
+  color: THEME.text,
 };
 
 const header = {
-  background: "linear-gradient(135deg, #0F2A4A, #00539B)",
+  background: THEME.headerBg,
   padding: "20px 18px",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
+  color: THEME.headerText,
+};
+
+const headerTitle = {
+  fontFamily: FONT_DISPLAY,
+  fontSize: 20,
+  fontWeight: 600,
+  letterSpacing: "-0.01em",
+  color: THEME.headerText,
+  margin: 0,
+};
+
+const headerSub = {
+  fontFamily: FONT_BODY,
+  fontSize: 12,
+  color: THEME.headerTextMuted,
 };
 
 const tabBar = {
@@ -3935,12 +4005,12 @@ const tabBar = {
   left: 0,
   right: 0,
   height: 62,
-  background: "#fff",
-  borderTop: "1px solid #EDEFF2",
+  background: THEME.surface,
+  borderTop: `1px solid ${THEME.border}`,
   display: "flex",
 };
 
-const tabBtn = (active, themeColor = "#00539B") => ({
+const tabBtn = (active, themeColor = THEME.accentDeep) => ({
   flex: 1,
   display: "flex",
   flexDirection: "column",
@@ -3949,10 +4019,10 @@ const tabBtn = (active, themeColor = "#00539B") => ({
   gap: 2,
   background: "none",
   border: "none",
-  color: active ? themeColor : "#A6AEB8",
+  color: active ? themeColor : THEME.textFaint,
   fontFamily: FONT_BODY,
   fontSize: 9.5,
-  fontWeight: 600,
+  fontWeight: 700,
   cursor: "pointer",
   whiteSpace: "nowrap",
   padding: "0 2px",
@@ -3962,35 +4032,61 @@ const inputStyle = {
   fontFamily: FONT_BODY,
   fontSize: 14,
   padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid #D8DEE6",
+  borderRadius: THEME.radius,
+  border: `1px solid ${THEME.borderStrong}`,
+  background: THEME.surface,
+  color: THEME.text,
   outline: "none",
   boxSizing: "border-box",
 };
 
 const smallBtn = {
   fontFamily: FONT_BODY,
-  fontWeight: 600,
+  fontWeight: 700,
   fontSize: 13,
   padding: "10px 16px",
-  borderRadius: 10,
+  borderRadius: THEME.radius,
   border: "none",
-  background: "#00539B",
-  color: "#fff",
+  background: THEME.accentDeep,
+  color: "#FFFFFF",
   cursor: "pointer",
+};
+
+const secondaryBtn = {
+  ...smallBtn,
+  background: "transparent",
+  border: `1px solid ${THEME.accentDeep}`,
+  color: THEME.accentDeep,
 };
 
 const navArrow = {
   width: 32,
   height: 32,
   borderRadius: 999,
-  border: "1px solid #D8DEE6",
-  background: "#fff",
-  color: "#5C6B7A",
+  border: `1px solid ${THEME.borderStrong}`,
+  background: THEME.surface,
+  color: THEME.textMuted,
   fontSize: 18,
   lineHeight: 1,
   cursor: "pointer",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+};
+
+const card = {
+  background: THEME.surface,
+  border: `1px solid ${THEME.border}`,
+  borderRadius: THEME.radiusLg,
+  padding: 14,
+  boxShadow: THEME.shadowSm,
+};
+
+const sectionLabel = {
+  fontFamily: FONT_BODY,
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
+  color: THEME.textMuted,
 };
