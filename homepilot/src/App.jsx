@@ -137,7 +137,7 @@ function Barcode128({ value, height = 42 }) {
   return (
     <svg viewBox={`0 0 ${x} 40`} preserveAspectRatio="none" style={{ width: "100%", height, display: "block" }}>
       {bars.map((b, i) => (
-        <rect key={i} x={b.x} y={0} width={b.w} height={40} fill=THEME.text />
+        <rect key={i} x={b.x} y={0} width={b.w} height={40} fill={THEME.text} />
       ))}
     </svg>
   );
