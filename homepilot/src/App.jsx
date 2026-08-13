@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ShoppingCart, CreditCard, Plus, X, Check, Store, User, Loader2, Trash2, Calendar, Home, ListChecks, Star, GripVertical, MapPin } from "lucide-react";
+import { ShoppingCart, CreditCard, Plus, X, Check, Store, User, Loader2, Trash2, Calendar, Home, ListChecks, Star, GripVertical, MapPin, UtensilsCrossed } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
@@ -197,6 +197,13 @@ function monthGrid(d) {
 
 const BIRTHDAY_COLOR = { bg: "#C98A1E", text: "#FFFFFF" };
 const HOLIDAY_COLOR = { bg: "#3E7FC1", text: "#FFFFFF" };
+const MEAL_ACCENT = "#C97A22";
+const WEEKDAY_NAMES = ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];
+const WEEK_ORDER = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
+
+function todayWeekdayName() {
+  return WEEKDAY_NAMES[new Date().getDay()];
+}
 
 function colorForEvent(e) {
   if (e.isBirthday) return BIRTHDAY_COLOR;
@@ -834,7 +841,7 @@ function shade(hex, percent) {
 export default function HuishoudApp() {
   const [tab, setTab] = useState("home");
   const [user, setUser] = useState(null);
-  const [data, setData] = useState({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [] });
+  const [data, setData] = useState({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], meals: [], weekPlan: {} });
   const [activeStore, setActiveStore] = useState(DEFAULT_STORES[0]);
   const [loading, setLoading] = useState(true);
   const [newItem, setNewItem] = useState("");
@@ -860,6 +867,14 @@ export default function HuishoudApp() {
   const [deleteTargetDate, setDeleteTargetDate] = useState("");
   const [showSaveLocation, setShowSaveLocation] = useState(false);
   const [newLocationLabel, setNewLocationLabel] = useState("");
+
+  const [mealView, setMealView] = useState("list");
+  const [activeMeal, setActiveMeal] = useState(null);
+  const [mealChecked, setMealChecked] = useState({});
+  const [newMealDraft, setNewMealDraft] = useState({ name: "", ingredients: [] });
+  const [draftIngredient, setDraftIngredient] = useState({ text: "", store: "", stock: false });
+  const [mealConfirmedInfo, setMealConfirmedInfo] = useState(null);
+  const [pickingDay, setPickingDay] = useState(null);
   const [confirmRemoveEvent, setConfirmRemoveEvent] = useState(null);
   const [confirmDeleteChoice, setConfirmDeleteChoice] = useState(false);
   const [newBirthday, setNewBirthday] = useState({ name: "", day: "", month: "", year: "" });
@@ -923,7 +938,7 @@ export default function HuishoudApp() {
         const row = await fetchHousehold();
         if (row) {
           const parsed = row.data || {};
-          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], ...parsed });
+          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], meals: [], weekPlan: {}, ...parsed });
           if (parsed.stores?.length) setActiveStore(parsed.stores[0]);
           lastSyncRef.current = row.updated_at;
           setSyncStatus("ok");
@@ -951,7 +966,7 @@ export default function HuishoudApp() {
           const row = payload.new;
           if (!row || row.updated_at === lastSyncRef.current) return;
           const parsed = row.data || {};
-          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], ...parsed });
+          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], meals: [], weekPlan: {}, ...parsed });
           lastSyncRef.current = row.updated_at;
         }
       )
@@ -1057,6 +1072,85 @@ export default function HuishoudApp() {
     if (oldIndex === -1 || newIndex === -1) return;
     const reordered = arrayMove(list, oldIndex, newIndex);
     save({ ...data, lists: { ...data.lists, [store]: reordered } });
+  };
+
+  const openMealAdd = () => {
+    setNewMealDraft({ name: "", ingredients: [] });
+    setDraftIngredient({ text: "", store: data.stores[0] || "", stock: false });
+    setMealView("add");
+  };
+
+  const addIngredientToMealDraft = () => {
+    if (!draftIngredient.text.trim() || !draftIngredient.store) return;
+    setNewMealDraft((m) => ({
+      ...m,
+      ingredients: [...m.ingredients, { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text: draftIngredient.text.trim(), store: draftIngredient.store, stock: draftIngredient.stock }],
+    }));
+    setDraftIngredient({ text: "", store: draftIngredient.store, stock: false });
+  };
+
+  const removeIngredientFromMealDraft = (id) => {
+    setNewMealDraft((m) => ({ ...m, ingredients: m.ingredients.filter((i) => i.id !== id) }));
+  };
+
+  const saveMealDraft = () => {
+    if (!newMealDraft.name.trim() || newMealDraft.ingredients.length === 0) return;
+    const meal = { id: Date.now().toString(36), name: newMealDraft.name.trim(), ingredients: newMealDraft.ingredients };
+    save({ ...data, meals: [...(data.meals || []), meal] });
+    setMealView("list");
+  };
+
+  const removeMeal = (id) => {
+    save({
+      ...data,
+      meals: (data.meals || []).filter((m) => m.id !== id),
+      weekPlan: Object.fromEntries(Object.entries(data.weekPlan || {}).filter(([, mealId]) => mealId !== id)),
+    });
+  };
+
+  const openMealReview = (meal) => {
+    setActiveMeal(meal);
+    const initial = {};
+    meal.ingredients.forEach((ing) => {
+      initial[ing.id] = !ing.stock;
+    });
+    setMealChecked(initial);
+    setMealView("review");
+  };
+
+  const confirmMealToGroceries = () => {
+    if (!activeMeal) return;
+    const toAdd = activeMeal.ingredients.filter((ing) => mealChecked[ing.id]);
+    if (toAdd.length === 0) {
+      setMealView("list");
+      return;
+    }
+    let nextLists = { ...data.lists };
+    const byStore = {};
+    toAdd.forEach((ing) => {
+      const list = nextLists[ing.store] || [];
+      const existing = list.find((it) => !it.done && it.text.toLowerCase() === ing.text.toLowerCase());
+      if (existing) {
+        nextLists[ing.store] = list.map((it) => (it.id === existing.id ? { ...it, qty: (it.qty || 1) + 1 } : it));
+      } else {
+        nextLists[ing.store] = [...list, { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text: ing.text, done: false, addedBy: user, qty: 1 }];
+      }
+      byStore[ing.store] = (byStore[ing.store] || 0) + 1;
+    });
+    save({ ...data, lists: nextLists });
+    setMealConfirmedInfo({ count: toAdd.length, byStore, mealName: activeMeal.name });
+    setMealView("confirmed");
+  };
+
+  const setWeekPlanDay = (day, mealId) => {
+    save({ ...data, weekPlan: { ...data.weekPlan, [day]: mealId } });
+    setMealView("weekmenu");
+  };
+
+  const clearWeekPlanDay = (day) => {
+    const next = { ...data.weekPlan };
+    delete next[day];
+    save({ ...data, weekPlan: next });
   };
 
   const openEditItem = (store, it) => {
@@ -1646,6 +1740,57 @@ export default function HuishoudApp() {
       <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "16px 16px 90px" }}>
         {tab === "home" && (
           <>
+            {(() => {
+              const todayMealId = (data.weekPlan || {})[todayWeekdayName()];
+              const todayMeal = (data.meals || []).find((m) => m.id === todayMealId);
+              if (!todayMeal) return null;
+              return (
+                <>
+                  <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
+                    Vanavond eten
+                  </div>
+                  <button
+                    onClick={() => {
+                      setTab("eten");
+                      setMealView("weekmenu");
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      width: "100%",
+                      background: `${MEAL_ACCENT}14`,
+                      border: `1px solid ${MEAL_ACCENT}55`,
+                      borderRadius: 12,
+                      padding: "12px 14px",
+                      marginBottom: 20,
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 9,
+                        background: MEAL_ACCENT,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <UtensilsCrossed size={15} color="#fff" />
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: FONT_BODY, fontSize: 14, fontWeight: 700, color: THEME.text }}>{todayMeal.name}</div>
+                      <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted }}>Uit je weekmenu</div>
+                    </div>
+                  </button>
+                </>
+              );
+            })()}
+
             <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
               Boodschappen
             </div>
@@ -2929,6 +3074,559 @@ export default function HuishoudApp() {
           </>
         )}
 
+        {tab === "eten" && (
+          <>
+            {(mealView === "list" || mealView === "weekmenu") && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                <button
+                  onClick={() => setMealView("list")}
+                  style={{
+                    flex: 1,
+                    padding: "8px",
+                    borderRadius: 10,
+                    border: mealView === "list" ? "none" : `1px solid ${THEME.borderStrong}`,
+                    background: mealView === "list" ? theme.bg : "#fff",
+                    color: mealView === "list" ? "#fff" : THEME.textMuted,
+                    fontFamily: FONT_BODY,
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  Maaltijden
+                </button>
+                <button
+                  onClick={() => setMealView("weekmenu")}
+                  style={{
+                    flex: 1,
+                    padding: "8px",
+                    borderRadius: 10,
+                    border: mealView === "weekmenu" ? "none" : `1px solid ${THEME.borderStrong}`,
+                    background: mealView === "weekmenu" ? theme.bg : "#fff",
+                    color: mealView === "weekmenu" ? "#fff" : THEME.textMuted,
+                    fontFamily: FONT_BODY,
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  Weekmenu
+                </button>
+              </div>
+            )}
+
+            {mealView === "list" && (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+                  {(data.meals || []).length === 0 && (
+                    <div style={{ fontFamily: FONT_BODY, color: THEME.textFaint, fontSize: 14, padding: "24px 4px" }}>
+                      Nog geen maaltijden opgeslagen.
+                    </div>
+                  )}
+                  {(data.meals || []).map((meal) => {
+                    const storeSet = [...new Set(meal.ingredients.map((i) => i.store))];
+                    const stockCount = meal.ingredients.filter((i) => i.stock).length;
+                    return (
+                      <div
+                        key={meal.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          background: "#fff",
+                          border: `1px solid ${THEME.border}`,
+                          borderRadius: 14,
+                          padding: "13px 14px",
+                          boxShadow: THEME.shadowSm,
+                        }}
+                      >
+                        <button
+                          onClick={() => openMealReview(meal)}
+                          style={{ flex: 1, minWidth: 0, background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0 }}
+                        >
+                          <div style={{ fontFamily: FONT_DISPLAY, fontSize: 15, fontWeight: 600, color: THEME.text }}>{meal.name}</div>
+                          <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, marginTop: 3 }}>
+                            {meal.ingredients.length} ingrediënten{stockCount > 0 ? ` · ${stockCount} voorraad` : ""}
+                          </div>
+                          <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+                            {storeSet.map((s) => (
+                              <span
+                                key={s}
+                                style={{
+                                  fontFamily: FONT_BODY,
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: "#fff",
+                                  background: colorFor(s, data.storeColors).bg,
+                                  borderRadius: 999,
+                                  padding: "2px 8px",
+                                }}
+                              >
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => removeMeal(meal.id)}
+                          style={{ background: "none", border: "none", color: THEME.textFaint, cursor: "pointer", padding: 4, flexShrink: 0 }}
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={openMealAdd}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    borderRadius: 12,
+                    border: `1px dashed ${THEME.borderStrong}`,
+                    background: "#fff",
+                    color: THEME.textMuted,
+                    fontFamily: FONT_BODY,
+                    fontWeight: 600,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                  }}
+                >
+                  <Plus size={15} /> Maaltijd toevoegen
+                </button>
+              </>
+            )}
+
+            {mealView === "add" && (
+              <>
+                <input
+                  value={newMealDraft.name}
+                  onChange={(e) => setNewMealDraft({ ...newMealDraft, name: e.target.value })}
+                  placeholder="Naam, bijv. Spaghetti bolognese"
+                  style={{ ...inputStyle, width: "100%", marginBottom: 12 }}
+                />
+
+                {newMealDraft.ingredients.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                    {newMealDraft.ingredients.map((ing) => (
+                      <div
+                        key={ing.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          background: "#fff",
+                          border: `1px solid ${THEME.border}`,
+                          borderRadius: 10,
+                          padding: "8px 10px",
+                        }}
+                      >
+                        <span style={{ flex: 1, fontFamily: FONT_BODY, fontSize: 13, color: THEME.text }}>{ing.text}</span>
+                        {ing.stock && (
+                          <span style={{ fontFamily: FONT_BODY, fontSize: 10, color: THEME.textMuted }}>voorraad</span>
+                        )}
+                        <span
+                          style={{
+                            fontFamily: FONT_BODY,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: "#fff",
+                            background: colorFor(ing.store, data.storeColors).bg,
+                            borderRadius: 999,
+                            padding: "2px 8px",
+                          }}
+                        >
+                          {ing.store}
+                        </span>
+                        <button
+                          onClick={() => removeIngredientFromMealDraft(ing.id)}
+                          style={{ background: "none", border: "none", color: THEME.textFaint, cursor: "pointer", display: "flex" }}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ background: "#fff", border: `1px solid ${THEME.border}`, borderRadius: 12, padding: 12, marginBottom: 14 }}>
+                  <div style={{ fontFamily: FONT_BODY, fontSize: 11, fontWeight: 700, color: THEME.textMuted, marginBottom: 8, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Ingrediënt toevoegen
+                  </div>
+                  <input
+                    value={draftIngredient.text}
+                    onChange={(e) => setDraftIngredient({ ...draftIngredient, text: e.target.value })}
+                    onKeyDown={(e) => e.key === "Enter" && addIngredientToMealDraft()}
+                    placeholder="Bijv. Gehakt"
+                    style={{ ...inputStyle, width: "100%", marginBottom: 8 }}
+                  />
+                  <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                    {data.stores.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setDraftIngredient({ ...draftIngredient, store: s })}
+                        style={{
+                          fontFamily: FONT_BODY,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: "5px 10px",
+                          borderRadius: 999,
+                          border: draftIngredient.store === s ? "none" : `1px solid ${THEME.border}`,
+                          background: draftIngredient.store === s ? colorFor(s, data.storeColors).bg : "#fff",
+                          color: draftIngredient.store === s ? colorFor(s, data.storeColors).text : THEME.textMuted,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, cursor: "pointer" }}>
+                    <span
+                      onClick={() => setDraftIngredient({ ...draftIngredient, stock: !draftIngredient.stock })}
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 5,
+                        border: draftIngredient.stock ? "none" : `2px solid ${THEME.borderStrong}`,
+                        background: draftIngredient.stock ? theme.bg : "transparent",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {draftIngredient.stock && <Check size={11} color="#fff" strokeWidth={3} />}
+                    </span>
+                    <span style={{ fontFamily: FONT_BODY, fontSize: 13, color: THEME.text }}>
+                      Vaste voorraad (staat meestal al in huis)
+                    </span>
+                  </label>
+                  <button
+                    onClick={addIngredientToMealDraft}
+                    disabled={!draftIngredient.text.trim() || !draftIngredient.store}
+                    style={{
+                      width: "100%",
+                      padding: "8px",
+                      borderRadius: 8,
+                      border: `1px dashed ${THEME.borderStrong}`,
+                      background: "#fff",
+                      color: theme.bg,
+                      fontFamily: FONT_BODY,
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: "pointer",
+                      opacity: !draftIngredient.text.trim() || !draftIngredient.store ? 0.5 : 1,
+                    }}
+                  >
+                    + Ingrediënt toevoegen aan lijst
+                  </button>
+                </div>
+
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={saveMealDraft}
+                    disabled={!newMealDraft.name.trim() || newMealDraft.ingredients.length === 0}
+                    style={{
+                      ...smallBtn,
+                      background: theme.bg,
+                      flex: 1,
+                      opacity: !newMealDraft.name.trim() || newMealDraft.ingredients.length === 0 ? 0.5 : 1,
+                    }}
+                  >
+                    Maaltijd opslaan
+                  </button>
+                  <button
+                    onClick={() => setMealView("list")}
+                    style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}` }}
+                  >
+                    Annuleren
+                  </button>
+                </div>
+              </>
+            )}
+
+            {mealView === "review" && activeMeal && (
+              <>
+                <div style={{ fontFamily: FONT_DISPLAY, fontSize: 17, fontWeight: 600, color: THEME.text, marginBottom: 4 }}>
+                  {activeMeal.name}
+                </div>
+                <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, marginBottom: 14 }}>
+                  Verse ingrediënten staan al aangevinkt. Voorraad-items niet — vink aan wat je toch nodig hebt.
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
+                  {activeMeal.ingredients.map((ing) => (
+                    <button
+                      key={ing.id}
+                      onClick={() => setMealChecked({ ...mealChecked, [ing.id]: !mealChecked[ing.id] })}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        background: "#fff",
+                        border: `1px solid ${THEME.border}`,
+                        borderRadius: 12,
+                        padding: "11px 12px",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        width: "100%",
+                        opacity: ing.stock && !mealChecked[ing.id] ? 0.7 : 1,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: 6,
+                          border: mealChecked[ing.id] ? "none" : `2px solid ${THEME.borderStrong}`,
+                          background: mealChecked[ing.id] ? theme.bg : "transparent",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {mealChecked[ing.id] && <Check size={13} color="#fff" strokeWidth={3} />}
+                      </span>
+                      <span style={{ flex: 1, fontFamily: FONT_BODY, fontSize: 14, color: THEME.text, fontWeight: 500 }}>{ing.text}</span>
+                      {ing.stock && (
+                        <span
+                          style={{
+                            fontFamily: FONT_BODY,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: THEME.textMuted,
+                            border: `1px solid ${THEME.border}`,
+                            borderRadius: 999,
+                            padding: "2px 7px",
+                            flexShrink: 0,
+                          }}
+                        >
+                          voorraad
+                        </span>
+                      )}
+                      <span
+                        style={{
+                          fontFamily: FONT_BODY,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: colorFor(ing.store, data.storeColors).text,
+                          background: colorFor(ing.store, data.storeColors).bg,
+                          borderRadius: 999,
+                          padding: "2px 8px",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {ing.store}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={confirmMealToGroceries} style={{ ...smallBtn, background: theme.bg, flex: 1 }}>
+                    {Object.values(mealChecked).filter(Boolean).length} items toevoegen
+                  </button>
+                  <button
+                    onClick={() => setMealView("list")}
+                    style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}` }}
+                  >
+                    Annuleren
+                  </button>
+                </div>
+              </>
+            )}
+
+            {mealView === "confirmed" && mealConfirmedInfo && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", paddingTop: 30 }}>
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 999,
+                    background: THEME.accentSoft,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 14,
+                  }}
+                >
+                  <Check size={26} color={THEME.accentDeep} strokeWidth={2.5} />
+                </div>
+                <div style={{ fontFamily: FONT_DISPLAY, fontSize: 16, fontWeight: 600, color: THEME.text, marginBottom: 4 }}>
+                  {mealConfirmedInfo.count} items toegevoegd
+                </div>
+                <div style={{ fontFamily: FONT_BODY, fontSize: 13, color: THEME.textMuted, marginBottom: 18 }}>
+                  Van "{mealConfirmedInfo.mealName}" naar:
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+                  {Object.entries(mealConfirmedInfo.byStore).map(([store, n]) => (
+                    <div
+                      key={store}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        background: "#fff",
+                        border: `1px solid ${THEME.border}`,
+                        borderRadius: 10,
+                        padding: "10px 14px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontFamily: FONT_BODY,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: colorFor(store, data.storeColors).text,
+                          background: colorFor(store, data.storeColors).bg,
+                          borderRadius: 999,
+                          padding: "3px 9px",
+                        }}
+                      >
+                        {store}
+                      </span>
+                      <span style={{ fontFamily: FONT_BODY, fontSize: 13, color: THEME.textMuted }}>
+                        {n} item{n > 1 ? "s" : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setMealView("list")}
+                  style={{ marginTop: 22, background: "none", border: "none", color: theme.bg, fontFamily: FONT_BODY, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                >
+                  Terug naar maaltijden
+                </button>
+              </div>
+            )}
+
+            {mealView === "weekmenu" && (
+              <>
+                <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, marginBottom: 12 }}>
+                  Terugkerend weekschema — dezelfde planning elke week, tot je 'm aanpast.
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {WEEK_ORDER.map((day) => {
+                    const mealId = (data.weekPlan || {})[day];
+                    const meal = (data.meals || []).find((m) => m.id === mealId);
+                    return (
+                      <div
+                        key={day}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          background: "#fff",
+                          border: `1px solid ${THEME.border}`,
+                          borderRadius: 12,
+                          padding: "10px 12px",
+                        }}
+                      >
+                        <div style={{ width: 74, flexShrink: 0, fontFamily: FONT_BODY, fontSize: 12, fontWeight: 700, color: THEME.textMuted }}>
+                          {day}
+                        </div>
+                        {meal ? (
+                          <>
+                            <button
+                              onClick={() => openMealReview(meal)}
+                              style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", background: "none", border: "none", padding: 0, textAlign: "left" }}
+                            >
+                              <span
+                                style={{
+                                  width: 26,
+                                  height: 26,
+                                  borderRadius: 8,
+                                  background: `${MEAL_ACCENT}22`,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <UtensilsCrossed size={13} color={MEAL_ACCENT} />
+                              </span>
+                              <span style={{ fontFamily: FONT_BODY, fontSize: 13, fontWeight: 600, color: THEME.text }}>{meal.name}</span>
+                            </button>
+                            <button
+                              onClick={() => clearWeekPlanDay(day)}
+                              style={{ background: "none", border: "none", color: THEME.textFaint, cursor: "pointer", display: "flex" }}
+                            >
+                              <X size={14} />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setPickingDay(day);
+                              setMealView("daypick");
+                            }}
+                            style={{
+                              flex: 1,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                              background: "none",
+                              border: "none",
+                              color: THEME.textFaint,
+                              fontFamily: FONT_BODY,
+                              fontSize: 13,
+                              cursor: "pointer",
+                              padding: 0,
+                            }}
+                          >
+                            <Plus size={14} /> Kies een maaltijd
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {mealView === "daypick" && (
+              <>
+                <button
+                  onClick={() => setMealView("weekmenu")}
+                  style={{ fontFamily: FONT_BODY, fontSize: 13, fontWeight: 700, color: theme.bg, background: "none", border: "none", cursor: "pointer", marginBottom: 14, padding: 0 }}
+                >
+                  ‹ Terug naar weekmenu
+                </button>
+                {(data.meals || []).length === 0 ? (
+                  <div style={{ fontFamily: FONT_BODY, color: THEME.textFaint, fontSize: 14, padding: "12px 2px" }}>
+                    Nog geen maaltijden opgeslagen — maak er eerst een aan bij "Maaltijden".
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {(data.meals || []).map((meal) => (
+                      <button
+                        key={meal.id}
+                        onClick={() => setWeekPlanDay(pickingDay, meal.id)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          background: "#fff",
+                          border: `1px solid ${THEME.border}`,
+                          borderRadius: 12,
+                          padding: "12px 14px",
+                          cursor: "pointer",
+                          textAlign: "left",
+                        }}
+                      >
+                        <UtensilsCrossed size={16} color={MEAL_ACCENT} />
+                        <span style={{ fontFamily: FONT_BODY, fontSize: 14, fontWeight: 600, color: THEME.text }}>{meal.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+
         {tab === "agenda" && (
           <>
             <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, marginBottom: 14 }}>
@@ -3681,6 +4379,13 @@ export default function HuishoudApp() {
           <span>Boodschappen</span>
         </button>
         <button
+          onClick={() => setTab("eten")}
+          style={tabBtn(tab === "eten", theme.bg)}
+        >
+          <UtensilsCrossed size={15} />
+          <span>Eten</span>
+        </button>
+        <button
           onClick={() => setTab("klantkaarten")}
           style={tabBtn(tab === "klantkaarten", theme.bg)}
         >
@@ -4019,11 +4724,11 @@ const tabBtn = (active, themeColor = THEME.accentDeep) => ({
   border: "none",
   color: active ? themeColor : THEME.textFaint,
   fontFamily: FONT_BODY,
-  fontSize: 9.5,
+  fontSize: 8.5,
   fontWeight: 700,
   cursor: "pointer",
   whiteSpace: "nowrap",
-  padding: "0 2px",
+  padding: "0 1px",
 });
 
 const inputStyle = {
