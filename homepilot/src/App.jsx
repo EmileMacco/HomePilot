@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ShoppingCart, CreditCard, Plus, X, Check, Store, User, Loader2, Trash2, Calendar, Home, ListChecks, Star, GripVertical, MapPin, UtensilsCrossed } from "lucide-react";
+import { ShoppingCart, CreditCard, Plus, X, Check, Store, User, Loader2, Trash2, Calendar, Home, ListChecks, Star, GripVertical, MapPin, UtensilsCrossed, Pencil } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
@@ -872,7 +872,8 @@ export default function HuishoudApp() {
   const [activeMeal, setActiveMeal] = useState(null);
   const [mealChecked, setMealChecked] = useState({});
   const [newMealDraft, setNewMealDraft] = useState({ name: "", ingredients: [] });
-  const [draftIngredient, setDraftIngredient] = useState({ text: "", store: "", stock: false });
+  const [draftIngredient, setDraftIngredient] = useState({ text: "", amount: "", store: "", stock: false });
+  const [editingMealId, setEditingMealId] = useState(null);
   const [mealConfirmedInfo, setMealConfirmedInfo] = useState(null);
   const [pickingDay, setPickingDay] = useState(null);
   const [confirmRemoveEvent, setConfirmRemoveEvent] = useState(null);
@@ -1075,18 +1076,35 @@ export default function HuishoudApp() {
   };
 
   const openMealAdd = () => {
+    setEditingMealId(null);
     setNewMealDraft({ name: "", ingredients: [] });
-    setDraftIngredient({ text: "", store: data.stores[0] || "", stock: false });
+    setDraftIngredient({ text: "", amount: "", store: data.stores[0] || "", stock: false });
+    setMealView("add");
+  };
+
+  const openMealEdit = (meal) => {
+    setEditingMealId(meal.id);
+    setNewMealDraft({ name: meal.name, ingredients: meal.ingredients.map((i) => ({ ...i })) });
+    setDraftIngredient({ text: "", amount: "", store: data.stores[0] || "", stock: false });
     setMealView("add");
   };
 
   const addIngredientToMealDraft = () => {
-    if (!draftIngredient.text.trim() || !draftIngredient.store) return;
+    if (!draftIngredient.text.trim()) return;
     setNewMealDraft((m) => ({
       ...m,
-      ingredients: [...m.ingredients, { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text: draftIngredient.text.trim(), store: draftIngredient.store, stock: draftIngredient.stock }],
+      ingredients: [
+        ...m.ingredients,
+        {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+          text: draftIngredient.text.trim(),
+          amount: draftIngredient.amount.trim(),
+          store: draftIngredient.store || "",
+          stock: draftIngredient.stock,
+        },
+      ],
     }));
-    setDraftIngredient({ text: "", store: draftIngredient.store, stock: false });
+    setDraftIngredient({ text: "", amount: "", store: draftIngredient.store, stock: false });
   };
 
   const removeIngredientFromMealDraft = (id) => {
@@ -1095,8 +1113,16 @@ export default function HuishoudApp() {
 
   const saveMealDraft = () => {
     if (!newMealDraft.name.trim() || newMealDraft.ingredients.length === 0) return;
-    const meal = { id: Date.now().toString(36), name: newMealDraft.name.trim(), ingredients: newMealDraft.ingredients };
-    save({ ...data, meals: [...(data.meals || []), meal] });
+    if (editingMealId) {
+      const meals = (data.meals || []).map((m) =>
+        m.id === editingMealId ? { ...m, name: newMealDraft.name.trim(), ingredients: newMealDraft.ingredients } : m
+      );
+      save({ ...data, meals });
+    } else {
+      const meal = { id: Date.now().toString(36), name: newMealDraft.name.trim(), ingredients: newMealDraft.ingredients };
+      save({ ...data, meals: [...(data.meals || []), meal] });
+    }
+    setEditingMealId(null);
     setMealView("list");
   };
 
@@ -1106,6 +1132,10 @@ export default function HuishoudApp() {
       meals: (data.meals || []).filter((m) => m.id !== id),
       weekPlan: Object.fromEntries(Object.entries(data.weekPlan || {}).filter(([, mealId]) => mealId !== id)),
     });
+    if (editingMealId === id) {
+      setEditingMealId(null);
+      setMealView("list");
+    }
   };
 
   const openMealReview = (meal) => {
@@ -1120,7 +1150,8 @@ export default function HuishoudApp() {
 
   const confirmMealToGroceries = () => {
     if (!activeMeal) return;
-    const toAdd = activeMeal.ingredients.filter((ing) => mealChecked[ing.id]);
+    const toAdd = activeMeal.ingredients.filter((ing) => mealChecked[ing.id] && ing.store);
+    const skippedNoStore = activeMeal.ingredients.filter((ing) => mealChecked[ing.id] && !ing.store).length;
     if (toAdd.length === 0) {
       setMealView("list");
       return;
@@ -1128,17 +1159,18 @@ export default function HuishoudApp() {
     let nextLists = { ...data.lists };
     const byStore = {};
     toAdd.forEach((ing) => {
+      const itemText = ing.amount ? `${ing.text} (${ing.amount})` : ing.text;
       const list = nextLists[ing.store] || [];
-      const existing = list.find((it) => !it.done && it.text.toLowerCase() === ing.text.toLowerCase());
+      const existing = list.find((it) => !it.done && it.text.toLowerCase() === itemText.toLowerCase());
       if (existing) {
         nextLists[ing.store] = list.map((it) => (it.id === existing.id ? { ...it, qty: (it.qty || 1) + 1 } : it));
       } else {
-        nextLists[ing.store] = [...list, { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text: ing.text, done: false, addedBy: user, qty: 1 }];
+        nextLists[ing.store] = [...list, { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text: itemText, done: false, addedBy: user, qty: 1 }];
       }
       byStore[ing.store] = (byStore[ing.store] || 0) + 1;
     });
     save({ ...data, lists: nextLists });
-    setMealConfirmedInfo({ count: toAdd.length, byStore, mealName: activeMeal.name });
+    setMealConfirmedInfo({ count: toAdd.length, byStore, mealName: activeMeal.name, skipped: skippedNoStore });
     setMealView("confirmed");
   };
 
@@ -3124,7 +3156,7 @@ export default function HuishoudApp() {
                     </div>
                   )}
                   {(data.meals || []).map((meal) => {
-                    const storeSet = [...new Set(meal.ingredients.map((i) => i.store))];
+                    const storeSet = [...new Set(meal.ingredients.map((i) => i.store).filter(Boolean))];
                     const stockCount = meal.ingredients.filter((i) => i.stock).length;
                     return (
                       <div
@@ -3167,6 +3199,12 @@ export default function HuishoudApp() {
                           </div>
                         </button>
                         <button
+                          onClick={() => openMealEdit(meal)}
+                          style={{ background: "none", border: "none", color: THEME.textFaint, cursor: "pointer", padding: 4, flexShrink: 0 }}
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
                           onClick={() => removeMeal(meal.id)}
                           style={{ background: "none", border: "none", color: THEME.textFaint, cursor: "pointer", padding: 4, flexShrink: 0 }}
                         >
@@ -3202,6 +3240,9 @@ export default function HuishoudApp() {
 
             {mealView === "add" && (
               <>
+                <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginBottom: 10, textTransform: "uppercase" }}>
+                  {editingMealId ? "Maaltijd bewerken" : "Nieuwe maaltijd"}
+                </div>
                 <input
                   value={newMealDraft.name}
                   onChange={(e) => setNewMealDraft({ ...newMealDraft, name: e.target.value })}
@@ -3224,26 +3265,34 @@ export default function HuishoudApp() {
                           padding: "8px 10px",
                         }}
                       >
-                        <span style={{ flex: 1, fontFamily: FONT_BODY, fontSize: 13, color: THEME.text }}>{ing.text}</span>
-                        {ing.stock && (
-                          <span style={{ fontFamily: FONT_BODY, fontSize: 10, color: THEME.textMuted }}>voorraad</span>
-                        )}
-                        <span
-                          style={{
-                            fontFamily: FONT_BODY,
-                            fontSize: 10,
-                            fontWeight: 700,
-                            color: "#fff",
-                            background: colorFor(ing.store, data.storeColors).bg,
-                            borderRadius: 999,
-                            padding: "2px 8px",
-                          }}
-                        >
-                          {ing.store}
+                        <span style={{ flex: 1, minWidth: 0, fontFamily: FONT_BODY, fontSize: 13, color: THEME.text }}>
+                          {ing.text}
+                          {ing.amount ? <span style={{ color: THEME.textMuted }}> — {ing.amount}</span> : ""}
                         </span>
+                        {ing.stock && (
+                          <span style={{ fontFamily: FONT_BODY, fontSize: 10, color: THEME.textMuted, flexShrink: 0 }}>voorraad</span>
+                        )}
+                        {ing.store ? (
+                          <span
+                            style={{
+                              fontFamily: FONT_BODY,
+                              fontSize: 10,
+                              fontWeight: 700,
+                              color: "#fff",
+                              background: colorFor(ing.store, data.storeColors).bg,
+                              borderRadius: 999,
+                              padding: "2px 8px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {ing.store}
+                          </span>
+                        ) : (
+                          <span style={{ fontFamily: FONT_BODY, fontSize: 10, color: THEME.textFaint, flexShrink: 0 }}>geen winkel</span>
+                        )}
                         <button
                           onClick={() => removeIngredientFromMealDraft(ing.id)}
-                          style={{ background: "none", border: "none", color: THEME.textFaint, cursor: "pointer", display: "flex" }}
+                          style={{ background: "none", border: "none", color: THEME.textFaint, cursor: "pointer", display: "flex", flexShrink: 0 }}
                         >
                           <X size={14} />
                         </button>
@@ -3256,14 +3305,39 @@ export default function HuishoudApp() {
                   <div style={{ fontFamily: FONT_BODY, fontSize: 11, fontWeight: 700, color: THEME.textMuted, marginBottom: 8, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                     Ingrediënt toevoegen
                   </div>
-                  <input
-                    value={draftIngredient.text}
-                    onChange={(e) => setDraftIngredient({ ...draftIngredient, text: e.target.value })}
-                    onKeyDown={(e) => e.key === "Enter" && addIngredientToMealDraft()}
-                    placeholder="Bijv. Gehakt"
-                    style={{ ...inputStyle, width: "100%", marginBottom: 8 }}
-                  />
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <input
+                      value={draftIngredient.text}
+                      onChange={(e) => setDraftIngredient({ ...draftIngredient, text: e.target.value })}
+                      onKeyDown={(e) => e.key === "Enter" && addIngredientToMealDraft()}
+                      placeholder="Bijv. Kipfilet"
+                      style={{ ...inputStyle, flex: 1.4 }}
+                    />
+                    <input
+                      value={draftIngredient.amount}
+                      onChange={(e) => setDraftIngredient({ ...draftIngredient, amount: e.target.value })}
+                      onKeyDown={(e) => e.key === "Enter" && addIngredientToMealDraft()}
+                      placeholder="Hoeveelheid, bijv. 600 gram"
+                      style={{ ...inputStyle, flex: 1 }}
+                    />
+                  </div>
                   <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                    <button
+                      onClick={() => setDraftIngredient({ ...draftIngredient, store: "" })}
+                      style={{
+                        fontFamily: FONT_BODY,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: "5px 10px",
+                        borderRadius: 999,
+                        border: !draftIngredient.store ? "none" : `1px solid ${THEME.border}`,
+                        background: !draftIngredient.store ? THEME.textMuted : "#fff",
+                        color: !draftIngredient.store ? "#fff" : THEME.textMuted,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Geen winkel
+                    </button>
                     {data.stores.map((s) => (
                       <button
                         key={s}
@@ -3336,10 +3410,13 @@ export default function HuishoudApp() {
                       opacity: !newMealDraft.name.trim() || newMealDraft.ingredients.length === 0 ? 0.5 : 1,
                     }}
                   >
-                    Maaltijd opslaan
+                    {editingMealId ? "Wijzigingen opslaan" : "Maaltijd opslaan"}
                   </button>
                   <button
-                    onClick={() => setMealView("list")}
+                    onClick={() => {
+                      setEditingMealId(null);
+                      setMealView("list");
+                    }}
                     style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}` }}
                   >
                     Annuleren
@@ -3390,7 +3467,10 @@ export default function HuishoudApp() {
                       >
                         {mealChecked[ing.id] && <Check size={13} color="#fff" strokeWidth={3} />}
                       </span>
-                      <span style={{ flex: 1, fontFamily: FONT_BODY, fontSize: 14, color: THEME.text, fontWeight: 500 }}>{ing.text}</span>
+                      <span style={{ flex: 1, minWidth: 0, fontFamily: FONT_BODY, fontSize: 14, color: THEME.text, fontWeight: 500 }}>
+                        {ing.text}
+                        {ing.amount ? <span style={{ color: THEME.textMuted, fontWeight: 400 }}> — {ing.amount}</span> : ""}
+                      </span>
                       {ing.stock && (
                         <span
                           style={{
@@ -3407,26 +3487,35 @@ export default function HuishoudApp() {
                           voorraad
                         </span>
                       )}
-                      <span
-                        style={{
-                          fontFamily: FONT_BODY,
-                          fontSize: 10,
-                          fontWeight: 700,
-                          color: colorFor(ing.store, data.storeColors).text,
-                          background: colorFor(ing.store, data.storeColors).bg,
-                          borderRadius: 999,
-                          padding: "2px 8px",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {ing.store}
-                      </span>
+                      {ing.store ? (
+                        <span
+                          style={{
+                            fontFamily: FONT_BODY,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: colorFor(ing.store, data.storeColors).text,
+                            background: colorFor(ing.store, data.storeColors).bg,
+                            borderRadius: 999,
+                            padding: "2px 8px",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {ing.store}
+                        </span>
+                      ) : (
+                        <span style={{ fontFamily: FONT_BODY, fontSize: 10, color: THEME.textFaint, flexShrink: 0 }}>geen winkel</span>
+                      )}
                     </button>
                   ))}
                 </div>
+                {activeMeal.ingredients.some((ing) => mealChecked[ing.id] && !ing.store) && (
+                  <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, marginBottom: 10 }}>
+                    Items zonder winkel worden niet aan een lijstje toegevoegd.
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={confirmMealToGroceries} style={{ ...smallBtn, background: theme.bg, flex: 1 }}>
-                    {Object.values(mealChecked).filter(Boolean).length} items toevoegen
+                    {activeMeal.ingredients.filter((ing) => mealChecked[ing.id] && ing.store).length} items toevoegen
                   </button>
                   <button
                     onClick={() => setMealView("list")}
