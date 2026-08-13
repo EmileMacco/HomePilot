@@ -3311,14 +3311,14 @@ export default function HuishoudApp() {
                       onChange={(e) => setDraftIngredient({ ...draftIngredient, text: e.target.value })}
                       onKeyDown={(e) => e.key === "Enter" && addIngredientToMealDraft()}
                       placeholder="Bijv. Kipfilet"
-                      style={{ ...inputStyle, flex: 1.4 }}
+                      style={{ ...inputStyle, flex: 1.2, minWidth: 0 }}
                     />
                     <input
                       value={draftIngredient.amount}
                       onChange={(e) => setDraftIngredient({ ...draftIngredient, amount: e.target.value })}
                       onKeyDown={(e) => e.key === "Enter" && addIngredientToMealDraft()}
-                      placeholder="Hoeveelheid, bijv. 600 gram"
-                      style={{ ...inputStyle, flex: 1 }}
+                      placeholder="bijv. 600 gram"
+                      style={{ ...inputStyle, flex: 1, minWidth: 0 }}
                     />
                   </div>
                   <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
@@ -3380,7 +3380,7 @@ export default function HuishoudApp() {
                   </label>
                   <button
                     onClick={addIngredientToMealDraft}
-                    disabled={!draftIngredient.text.trim() || !draftIngredient.store}
+                    disabled={!draftIngredient.text.trim()}
                     style={{
                       width: "100%",
                       padding: "8px",
@@ -3392,7 +3392,7 @@ export default function HuishoudApp() {
                       fontWeight: 700,
                       fontSize: 12,
                       cursor: "pointer",
-                      opacity: !draftIngredient.text.trim() || !draftIngredient.store ? 0.5 : 1,
+                      opacity: !draftIngredient.text.trim() ? 0.5 : 1,
                     }}
                   >
                     + Ingrediënt toevoegen aan lijst
