@@ -564,73 +564,33 @@ const MINUTES_5 = Array.from({ length: 12 }, (_, i) => pad2(i * 5));
 
 const MONTHS_SHORT = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
 
-function DateSelect({ value, onChange }) {
-  const [y, m, d] = (value || "").split("-");
-  const nowY = new Date().getFullYear();
-  const YEARS = Array.from({ length: 5 }, (_, i) => String(nowY - 1 + i));
-  const selectStyle = {
-    fontFamily: FONT_BODY,
-    fontSize: 13,
-    padding: "10px 4px",
-    borderRadius: 10,
-    border: `1px solid ${THEME.borderStrong}`,
-    outline: "none",
-    background: "#fff",
-    flex: 1,
-    minWidth: 0,
-    boxSizing: "border-box",
-  };
-  const set = (part, val) => {
-    const yy = part === "y" ? val : y || String(nowY);
-    const mm = part === "m" ? val : m || "";
-    const dd = part === "d" ? val : d || "";
-    if (!mm || !dd) {
-      onChange(`${yy}-${part === "m" ? val : mm || "01"}-${part === "d" ? val : dd || "01"}`);
-    } else {
-      onChange(`${yy}-${mm}-${dd}`);
-    }
-  };
+function formatDateShort(iso) {
+  if (!iso) return "";
+  const d = fromISO(iso);
+  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function DateField({ value, onChange, placeholder, onOpen }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <select value={d || ""} onChange={(e) => set("d", e.target.value)} style={{ ...selectStyle, flex: 0.8 }}>
-        <option value="" disabled>
-          dag
-        </option>
-        {Array.from({ length: 31 }, (_, i) => pad2(i + 1)).map((dd) => (
-          <option key={dd} value={dd}>
-            {dd}
-          </option>
-        ))}
-      </select>
-      <select value={m || ""} onChange={(e) => set("m", e.target.value)} style={{ ...selectStyle, flex: 1.3 }}>
-        <option value="" disabled>
-          maand
-        </option>
-        {MONTHS_SHORT.map((mm, i) => (
-          <option key={mm} value={pad2(i + 1)}>
-            {mm}
-          </option>
-        ))}
-      </select>
-      <select value={y || ""} onChange={(e) => set("y", e.target.value)} style={{ ...selectStyle, flex: 1 }}>
-        <option value="" disabled>
-          jaar
-        </option>
-        {YEARS.map((yy) => (
-          <option key={yy} value={yy}>
-            {yy}
-          </option>
-        ))}
-      </select>
-      {value && (
-        <button
-          onClick={() => onChange("")}
-          style={{ background: "none", border: "none", color: "#C7CFD8", cursor: "pointer", padding: 2, flexShrink: 0 }}
-        >
-          <X size={14} />
-        </button>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={() => onOpen(value, onChange)}
+      style={{
+        ...inputStyle,
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        cursor: "pointer",
+        textAlign: "left",
+        boxSizing: "border-box",
+      }}
+    >
+      <span style={{ color: value ? THEME.text : THEME.textFaint, fontFamily: FONT_BODY, fontSize: 14 }}>
+        {value ? formatDateShort(value) : placeholder || "Kies een datum"}
+      </span>
+      <Calendar size={14} color={THEME.textFaint} style={{ flexShrink: 0 }} />
+    </button>
   );
 }
 
@@ -877,6 +837,14 @@ export default function HuishoudApp() {
   const [mealConfirmedInfo, setMealConfirmedInfo] = useState(null);
   const [pickingDay, setPickingDay] = useState(null);
   const [confirmRemoveEvent, setConfirmRemoveEvent] = useState(null);
+  const [datePicker, setDatePicker] = useState(null);
+  const [datePickerCursor, setDatePickerCursor] = useState(new Date());
+
+  const openDatePicker = (value, onChange) => {
+    setDatePicker({ value, onChange });
+    setDatePickerCursor(value ? fromISO(value) : new Date());
+  };
+  const closeDatePicker = () => setDatePicker(null);
   const [confirmDeleteChoice, setConfirmDeleteChoice] = useState(false);
   const [newBirthday, setNewBirthday] = useState({ name: "", day: "", month: "", year: "" });
   const [editingBirthdayId, setEditingBirthdayId] = useState(null);
@@ -2356,18 +2324,20 @@ export default function HuishoudApp() {
                           <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                             Pas kopen vanaf
                           </div>
-                          <DateSelect
+                          <DateField
                             value={itemDraft.validFrom}
                             onChange={(v) => setItemDraft({ ...itemDraft, validFrom: v })}
+                            onOpen={openDatePicker}
                           />
                         </div>
                         <div style={{ marginBottom: 10 }}>
                           <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                             In de bonus t/m
                           </div>
-                          <DateSelect
+                          <DateField
                             value={itemDraft.validTo}
                             onChange={(v) => setItemDraft({ ...itemDraft, validTo: v })}
+                            onOpen={openDatePicker}
                           />
                         </div>
                         <div style={{ marginBottom: 4 }}>
@@ -2552,18 +2522,20 @@ export default function HuishoudApp() {
                               <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                                 Pas kopen vanaf
                               </div>
-                              <DateSelect
+                              <DateField
                                 value={itemDraft.validFrom}
                                 onChange={(v) => setItemDraft({ ...itemDraft, validFrom: v })}
+                                onOpen={openDatePicker}
                               />
                             </div>
                             <div style={{ marginBottom: 10 }}>
                               <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                                 In de bonus t/m
                               </div>
-                              <DateSelect
+                              <DateField
                                 value={itemDraft.validTo}
                                 onChange={(v) => setItemDraft({ ...itemDraft, validTo: v })}
+                                onOpen={openDatePicker}
                               />
                             </div>
                             <div style={{ marginBottom: 4 }}>
@@ -2929,7 +2901,7 @@ export default function HuishoudApp() {
                   style={{ ...inputStyle, width: "100%", marginBottom: 8 }}
                 />
                 <div style={{ marginBottom: 10 }}>
-                  <DateSelect value={newTodo.date} onChange={(v) => setNewTodo({ ...newTodo, date: v })} />
+                  <DateField value={newTodo.date} onChange={(v) => setNewTodo({ ...newTodo, date: v })} onOpen={openDatePicker} />
                 </div>
                 {newTodo.date && (
                   <div style={{ marginBottom: 10 }}>
@@ -4021,13 +3993,13 @@ export default function HuishoudApp() {
                       style={{ ...inputStyle, width: "100%", marginBottom: 8 }}
                     />
                     <div style={{ marginBottom: 10 }}>
-                      <DateSelect value={newEvent.date} onChange={(v) => setNewEvent({ ...newEvent, date: v })} />
+                      <DateField value={newEvent.date} onChange={(v) => setNewEvent({ ...newEvent, date: v })} onOpen={openDatePicker} />
                     </div>
                     <div style={{ marginBottom: 10 }}>
                       <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
                         T/m (optioneel, voor meerdaagse afspraken zoals vakanties)
                       </div>
-                      <DateSelect value={newEvent.endDate} onChange={(v) => setNewEvent({ ...newEvent, endDate: v })} />
+                      <DateField value={newEvent.endDate} onChange={(v) => setNewEvent({ ...newEvent, endDate: v })} onOpen={openDatePicker} />
                     </div>
 
                     <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, cursor: "pointer" }}>
@@ -4739,6 +4711,113 @@ export default function HuishoudApp() {
                 style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}`, flex: 1 }}
               >
                 Annuleren
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {datePicker && (
+        <div
+          onClick={closeDatePicker}
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(15,42,74,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={(ev) => ev.stopPropagation()}
+            style={{ background: "#fff", borderRadius: 16, padding: 16, width: "100%", maxWidth: 320, boxShadow: "0 12px 40px rgba(15,42,74,0.3)" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <button
+                onClick={() => setDatePickerCursor(new Date(datePickerCursor.getFullYear(), datePickerCursor.getMonth() - 1, 1))}
+                style={navArrow}
+              >
+                ‹
+              </button>
+              <div style={{ fontFamily: FONT_DISPLAY, fontSize: 15, fontWeight: 600, color: THEME.text, textTransform: "capitalize" }}>
+                {MONTHS_FULL[datePickerCursor.getMonth()]} {datePickerCursor.getFullYear()}
+              </div>
+              <button
+                onClick={() => setDatePickerCursor(new Date(datePickerCursor.getFullYear(), datePickerCursor.getMonth() + 1, 1))}
+                style={navArrow}
+              >
+                ›
+              </button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 4 }}>
+              {WEEKDAYS_SHORT.map((w) => (
+                <div key={w} style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textFaint, fontWeight: 600, textAlign: "center", padding: "4px 0" }}>
+                  {w}
+                </div>
+              ))}
+            </div>
+            {monthGrid(datePickerCursor).map((week, wi) => (
+              <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+                {week.map((d) => {
+                  const iso = toISO(d);
+                  const inMonth = d.getMonth() === datePickerCursor.getMonth();
+                  const isToday = iso === toISO(new Date());
+                  const isSelected = iso === datePicker.value;
+                  return (
+                    <button
+                      key={iso}
+                      onClick={() => {
+                        datePicker.onChange(iso);
+                        closeDatePicker();
+                      }}
+                      style={{
+                        border: "none",
+                        background: isSelected ? theme.bg : "transparent",
+                        borderRadius: 10,
+                        padding: "9px 0",
+                        margin: 1,
+                        cursor: "pointer",
+                        fontFamily: FONT_BODY,
+                        fontSize: 13,
+                        fontWeight: isToday ? 700 : 500,
+                        color: isSelected ? "#fff" : inMonth ? (isToday ? theme.bg : THEME.text) : THEME.textFaint,
+                      }}
+                    >
+                      {d.getDate()}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              <button
+                onClick={() => {
+                  datePicker.onChange(toISO(new Date()));
+                  closeDatePicker();
+                }}
+                style={{ ...smallBtn, background: theme.bg, flex: 1 }}
+              >
+                Vandaag
+              </button>
+              {datePicker.value && (
+                <button
+                  onClick={() => {
+                    datePicker.onChange("");
+                    closeDatePicker();
+                  }}
+                  style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}` }}
+                >
+                  Verwijderen
+                </button>
+              )}
+              <button
+                onClick={closeDatePicker}
+                style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}` }}
+              >
+                Sluiten
               </button>
             </div>
           </div>
