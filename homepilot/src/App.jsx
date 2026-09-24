@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ShoppingCart, CreditCard, Plus, X, Check, Store, User, Loader2, Trash2, Calendar, Home, ListChecks, Star, GripVertical, MapPin, UtensilsCrossed, Pencil } from "lucide-react";
+import { ShoppingCart, CreditCard, Plus, X, Check, Store, User, Loader2, Trash2, Calendar, Home, ListChecks, Star, GripVertical, MapPin, UtensilsCrossed, Pencil, Baby } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
@@ -245,6 +245,28 @@ const STATUS_META = {
 
 function getTodoStatus(t) {
   return t.status || (t.done ? "klaar" : "te_doen");
+}
+
+const PREGNANCY_SELF_TASKS = [
+  { week: 11, title: "Inschrijven bij verloskundige voor controle na de bevalling" },
+  { week: 11, title: "Inschrijven bij een kraamzorgorganisatie" },
+  { week: 11, title: "Zwangerschapsverklaring laten uitprinten" },
+  { week: 16, title: "Erkenning baby regelen (indien niet getrouwd)" },
+  { week: 19, title: "Inschrijven voor een zwangerschapscursus" },
+  { week: 24, title: "Kraamzorgpakket kopen of bestellen bij je zorgverzekering" },
+  { week: 27, title: "Informatieavond van het ziekenhuis bezoeken" },
+  { week: 31, title: "Baby meeverzekeren op je zorgverzekering" },
+  { week: 34, title: "Bedverhogers regelen bij de thuiszorgwinkel" },
+];
+
+function pregnancyWeekDate(startDate, week) {
+  return toISO(addDays(fromISO(startDate), week * 7));
+}
+
+function pregnancyWeekDay(startDate) {
+  const diffDays = Math.round((fromISO(toISO(new Date())) - fromISO(startDate)) / 86400000);
+  if (diffDays < 0) return null;
+  return { week: Math.floor(diffDays / 7), day: diffDays % 7 };
 }
 
 function isItemActive(it, todayIso) {
@@ -801,7 +823,7 @@ function shade(hex, percent) {
 export default function HuishoudApp() {
   const [tab, setTab] = useState("home");
   const [user, setUser] = useState(null);
-  const [data, setData] = useState({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], meals: [], weekPlan: {} });
+  const [data, setData] = useState({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], meals: [], weekPlan: {}, pregnancy: { startDate: "" } });
   const [activeStore, setActiveStore] = useState(DEFAULT_STORES[0]);
   const [loading, setLoading] = useState(true);
   const [newItem, setNewItem] = useState("");
@@ -836,6 +858,8 @@ export default function HuishoudApp() {
   const [editingMealId, setEditingMealId] = useState(null);
   const [mealConfirmedInfo, setMealConfirmedInfo] = useState(null);
   const [pickingDay, setPickingDay] = useState(null);
+  const [showPregnancySettings, setShowPregnancySettings] = useState(false);
+  const [pregnancyGenerateMsg, setPregnancyGenerateMsg] = useState("");
   const [confirmRemoveEvent, setConfirmRemoveEvent] = useState(null);
   const [datePicker, setDatePicker] = useState(null);
   const [datePickerCursor, setDatePickerCursor] = useState(new Date());
@@ -907,7 +931,7 @@ export default function HuishoudApp() {
         const row = await fetchHousehold();
         if (row) {
           const parsed = row.data || {};
-          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], meals: [], weekPlan: {}, ...parsed });
+          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], meals: [], weekPlan: {}, pregnancy: { startDate: "" }, ...parsed });
           if (parsed.stores?.length) setActiveStore(parsed.stores[0]);
           lastSyncRef.current = row.updated_at;
           setSyncStatus("ok");
@@ -935,7 +959,7 @@ export default function HuishoudApp() {
           const row = payload.new;
           if (!row || row.updated_at === lastSyncRef.current) return;
           const parsed = row.data || {};
-          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], meals: [], weekPlan: {}, ...parsed });
+          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], meals: [], weekPlan: {}, pregnancy: { startDate: "" }, ...parsed });
           lastSyncRef.current = row.updated_at;
         }
       )
@@ -1151,6 +1175,31 @@ export default function HuishoudApp() {
     const next = { ...data.weekPlan };
     delete next[day];
     save({ ...data, weekPlan: next });
+  };
+
+  const setPregnancyStartDate = (dateIso) => {
+    save({ ...data, pregnancy: { ...data.pregnancy, startDate: dateIso } });
+  };
+
+  const generatePregnancyTasks = () => {
+    if (!data.pregnancy?.startDate) return;
+    const existingTitles = new Set((data.todos || []).filter((t) => t.fromPregnancy).map((t) => t.title));
+    const toAdd = PREGNANCY_SELF_TASKS.filter((t) => !existingTitles.has(t.title)).map((t) => ({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      title: t.title,
+      date: pregnancyWeekDate(data.pregnancy.startDate, t.week),
+      time: "",
+      owner: "Samen",
+      status: "te_doen",
+      pickedUpBy: "",
+      fromPregnancy: true,
+    }));
+    if (toAdd.length === 0) {
+      setPregnancyGenerateMsg("Alle taken staan al in je Taken-lijst.");
+      return;
+    }
+    save({ ...data, todos: [...(data.todos || []), ...toAdd] });
+    setPregnancyGenerateMsg(`${toAdd.length} taken toegevoegd aan Taken.`);
   };
 
   const openEditItem = (store, it) => {
@@ -1740,6 +1789,56 @@ export default function HuishoudApp() {
       <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "16px 16px 90px" }}>
         {tab === "home" && (
           <>
+            {(() => {
+              const wd = data.pregnancy?.startDate ? pregnancyWeekDay(data.pregnancy.startDate) : null;
+              return (
+                <>
+                  <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
+                    Zwangerschap
+                  </div>
+                  <button
+                    onClick={() => setShowPregnancySettings(true)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      width: "100%",
+                      background: `${THEME.accentDeep}14`,
+                      border: `1px solid ${THEME.accentDeep}44`,
+                      borderRadius: 12,
+                      padding: "12px 14px",
+                      marginBottom: 20,
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 9,
+                        background: THEME.accentDeep,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Baby size={16} color="#fff" />
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: FONT_BODY, fontSize: 14, fontWeight: 700, color: THEME.text }}>
+                        {wd ? `Week ${wd.week}+${wd.day}` : "Zwangerschap instellen"}
+                      </div>
+                      <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted }}>
+                        {wd ? "Tik voor taken en instellingen" : "Startdatum invullen"}
+                      </div>
+                    </div>
+                  </button>
+                </>
+              );
+            })()}
+
             {(() => {
               const todayMealId = (data.weekPlan || {})[todayWeekdayName()];
               const todayMeal = (data.meals || []).find((m) => m.id === todayMealId);
@@ -4820,6 +4919,82 @@ export default function HuishoudApp() {
                 Sluiten
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showPregnancySettings && (
+        <div
+          onClick={() => {
+            setShowPregnancySettings(false);
+            setPregnancyGenerateMsg("");
+          }}
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(15,42,74,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 45,
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={(ev) => ev.stopPropagation()}
+            style={{ background: "#fff", borderRadius: 16, padding: 20, width: "100%", maxWidth: 320, boxShadow: "0 12px 40px rgba(15,42,74,0.3)" }}
+          >
+            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 17, fontWeight: 600, color: THEME.text, marginBottom: 4 }}>
+              Zwangerschap
+            </div>
+            <div style={{ fontFamily: FONT_BODY, fontSize: 13, color: THEME.textMuted, marginBottom: 14 }}>
+              Vul de eerste dag van de laatste menstruatie in (of de startdatum die je verloskundige aanhoudt) — daarop worden de week+dag-telling en de taken-datums gebaseerd.
+            </div>
+            <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
+              Startdatum
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <DateField
+                value={data.pregnancy?.startDate || ""}
+                onChange={setPregnancyStartDate}
+                onOpen={openDatePicker}
+                placeholder="Kies de startdatum"
+              />
+            </div>
+
+            {data.pregnancy?.startDate && (
+              <>
+                {(() => {
+                  const wd = pregnancyWeekDay(data.pregnancy.startDate);
+                  return wd ? (
+                    <div style={{ fontFamily: FONT_BODY, fontSize: 13, color: THEME.text, marginBottom: 14 }}>
+                      Vandaag: <strong>week {wd.week}+{wd.day}</strong>
+                    </div>
+                  ) : null;
+                })()}
+                <button
+                  onClick={generatePregnancyTasks}
+                  style={{ ...smallBtn, background: THEME.accentDeep, width: "100%", marginBottom: 8 }}
+                >
+                  "Zelf regelen"-taken aanmaken
+                </button>
+                {pregnancyGenerateMsg && (
+                  <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, marginBottom: 8 }}>
+                    {pregnancyGenerateMsg}
+                  </div>
+                )}
+              </>
+            )}
+
+            <button
+              onClick={() => {
+                setShowPregnancySettings(false);
+                setPregnancyGenerateMsg("");
+              }}
+              style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}`, width: "100%" }}
+            >
+              Sluiten
+            </button>
           </div>
         </div>
       )}
