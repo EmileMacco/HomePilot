@@ -858,8 +858,6 @@ export default function HuishoudApp() {
   const [editingMealId, setEditingMealId] = useState(null);
   const [mealConfirmedInfo, setMealConfirmedInfo] = useState(null);
   const [pickingDay, setPickingDay] = useState(null);
-  const [showPregnancySettings, setShowPregnancySettings] = useState(false);
-  const [pregnancyGenerateMsg, setPregnancyGenerateMsg] = useState("");
   const [confirmRemoveEvent, setConfirmRemoveEvent] = useState(null);
   const [datePicker, setDatePicker] = useState(null);
   const [datePickerCursor, setDatePickerCursor] = useState(new Date());
@@ -931,9 +929,30 @@ export default function HuishoudApp() {
         const row = await fetchHousehold();
         if (row) {
           const parsed = row.data || {};
-          setData({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], meals: [], weekPlan: {}, pregnancy: { startDate: "" }, ...parsed });
-          if (parsed.stores?.length) setActiveStore(parsed.stores[0]);
-          lastSyncRef.current = row.updated_at;
+          const merged = { stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], meals: [], weekPlan: {}, pregnancy: { startDate: "" }, ...parsed };
+          if (!merged.pregnancy?.startDate) {
+            merged.pregnancy = { ...merged.pregnancy, startDate: "2026-08-08" };
+            const existingTitles = new Set((merged.todos || []).filter((t) => t.fromPregnancy).map((t) => t.title));
+            const seedTasks = PREGNANCY_SELF_TASKS.filter((t) => !existingTitles.has(t.title)).map((t) => ({
+              id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+              title: t.title,
+              date: pregnancyWeekDate("2026-08-08", t.week),
+              time: "",
+              owner: "Samen",
+              status: "te_doen",
+              pickedUpBy: "",
+              fromPregnancy: true,
+            }));
+            merged.todos = [...(merged.todos || []), ...seedTasks];
+            setData(merged);
+            if (merged.stores?.length) setActiveStore(merged.stores[0]);
+            const pushed = await pushHousehold(merged);
+            if (pushed) lastSyncRef.current = pushed.updated_at;
+          } else {
+            setData(merged);
+            if (merged.stores?.length) setActiveStore(merged.stores[0]);
+            lastSyncRef.current = row.updated_at;
+          }
           setSyncStatus("ok");
         } else {
           setSyncStatus("error");
@@ -1175,31 +1194,6 @@ export default function HuishoudApp() {
     const next = { ...data.weekPlan };
     delete next[day];
     save({ ...data, weekPlan: next });
-  };
-
-  const setPregnancyStartDate = (dateIso) => {
-    save({ ...data, pregnancy: { ...data.pregnancy, startDate: dateIso } });
-  };
-
-  const generatePregnancyTasks = () => {
-    if (!data.pregnancy?.startDate) return;
-    const existingTitles = new Set((data.todos || []).filter((t) => t.fromPregnancy).map((t) => t.title));
-    const toAdd = PREGNANCY_SELF_TASKS.filter((t) => !existingTitles.has(t.title)).map((t) => ({
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-      title: t.title,
-      date: pregnancyWeekDate(data.pregnancy.startDate, t.week),
-      time: "",
-      owner: "Samen",
-      status: "te_doen",
-      pickedUpBy: "",
-      fromPregnancy: true,
-    }));
-    if (toAdd.length === 0) {
-      setPregnancyGenerateMsg("Alle taken staan al in je Taken-lijst.");
-      return;
-    }
-    save({ ...data, todos: [...(data.todos || []), ...toAdd] });
-    setPregnancyGenerateMsg(`${toAdd.length} taken toegevoegd aan Taken.`);
   };
 
   const openEditItem = (store, it) => {
@@ -1797,7 +1791,7 @@ export default function HuishoudApp() {
                     Zwangerschap
                   </div>
                   <button
-                    onClick={() => setShowPregnancySettings(true)}
+                    onClick={() => setTab("taken")}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -1828,10 +1822,10 @@ export default function HuishoudApp() {
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: FONT_BODY, fontSize: 14, fontWeight: 700, color: THEME.text }}>
-                        {wd ? `Week ${wd.week}+${wd.day}` : "Zwangerschap instellen"}
+                        {wd ? `Week ${wd.week}+${wd.day}` : "Zwangerschap"}
                       </div>
                       <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted }}>
-                        {wd ? "Tik voor taken en instellingen" : "Startdatum invullen"}
+                        Taken staan klaar in Taken
                       </div>
                     </div>
                   </button>
@@ -4919,82 +4913,6 @@ export default function HuishoudApp() {
                 Sluiten
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {showPregnancySettings && (
-        <div
-          onClick={() => {
-            setShowPregnancySettings(false);
-            setPregnancyGenerateMsg("");
-          }}
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "rgba(15,42,74,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 45,
-            padding: 24,
-          }}
-        >
-          <div
-            onClick={(ev) => ev.stopPropagation()}
-            style={{ background: "#fff", borderRadius: 16, padding: 20, width: "100%", maxWidth: 320, boxShadow: "0 12px 40px rgba(15,42,74,0.3)" }}
-          >
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 17, fontWeight: 600, color: THEME.text, marginBottom: 4 }}>
-              Zwangerschap
-            </div>
-            <div style={{ fontFamily: FONT_BODY, fontSize: 13, color: THEME.textMuted, marginBottom: 14 }}>
-              Vul de eerste dag van de laatste menstruatie in (of de startdatum die je verloskundige aanhoudt) — daarop worden de week+dag-telling en de taken-datums gebaseerd.
-            </div>
-            <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted, fontWeight: 600, marginBottom: 4 }}>
-              Startdatum
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <DateField
-                value={data.pregnancy?.startDate || ""}
-                onChange={setPregnancyStartDate}
-                onOpen={openDatePicker}
-                placeholder="Kies de startdatum"
-              />
-            </div>
-
-            {data.pregnancy?.startDate && (
-              <>
-                {(() => {
-                  const wd = pregnancyWeekDay(data.pregnancy.startDate);
-                  return wd ? (
-                    <div style={{ fontFamily: FONT_BODY, fontSize: 13, color: THEME.text, marginBottom: 14 }}>
-                      Vandaag: <strong>week {wd.week}+{wd.day}</strong>
-                    </div>
-                  ) : null;
-                })()}
-                <button
-                  onClick={generatePregnancyTasks}
-                  style={{ ...smallBtn, background: THEME.accentDeep, width: "100%", marginBottom: 8 }}
-                >
-                  "Zelf regelen"-taken aanmaken
-                </button>
-                {pregnancyGenerateMsg && (
-                  <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, marginBottom: 8 }}>
-                    {pregnancyGenerateMsg}
-                  </div>
-                )}
-              </>
-            )}
-
-            <button
-              onClick={() => {
-                setShowPregnancySettings(false);
-                setPregnancyGenerateMsg("");
-              }}
-              style={{ ...smallBtn, background: "#fff", color: THEME.textMuted, border: `1px solid ${THEME.borderStrong}`, width: "100%" }}
-            >
-              Sluiten
-            </button>
           </div>
         </div>
       )}
