@@ -259,6 +259,8 @@ const PREGNANCY_SELF_TASKS = [
   { week: 34, title: "Bedverhogers regelen bij de thuiszorgwinkel" },
 ];
 
+const PREGNANCY_START = "2026-08-08";
+
 function pregnancyWeekDate(startDate, week) {
   return toISO(addDays(fromISO(startDate), week * 7));
 }
@@ -929,14 +931,14 @@ export default function HuishoudApp() {
         const row = await fetchHousehold();
         if (row) {
           const parsed = row.data || {};
-          const merged = { stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], meals: [], weekPlan: {}, pregnancy: { startDate: "" }, ...parsed };
-          if (!merged.pregnancy?.startDate) {
-            merged.pregnancy = { ...merged.pregnancy, startDate: "2026-08-08" };
+          const merged = { stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], meals: [], weekPlan: {}, pregnancy: {}, ...parsed };
+          if (!merged.pregnancy?.tasksSeeded) {
+            merged.pregnancy = { ...merged.pregnancy, startDate: PREGNANCY_START, tasksSeeded: true };
             const existingTitles = new Set((merged.todos || []).filter((t) => t.fromPregnancy).map((t) => t.title));
             const seedTasks = PREGNANCY_SELF_TASKS.filter((t) => !existingTitles.has(t.title)).map((t) => ({
-              id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+              id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
               title: t.title,
-              date: pregnancyWeekDate("2026-08-08", t.week),
+              date: pregnancyWeekDate(PREGNANCY_START, t.week),
               time: "",
               owner: "Samen",
               status: "te_doen",
@@ -1784,7 +1786,7 @@ export default function HuishoudApp() {
         {tab === "home" && (
           <>
             {(() => {
-              const wd = data.pregnancy?.startDate ? pregnancyWeekDay(data.pregnancy.startDate) : null;
+              const wd = pregnancyWeekDay(PREGNANCY_START);
               return (
                 <>
                   <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
@@ -1823,9 +1825,6 @@ export default function HuishoudApp() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: FONT_BODY, fontSize: 14, fontWeight: 700, color: THEME.text }}>
                         {wd ? `Week ${wd.week}+${wd.day}` : "Zwangerschap"}
-                      </div>
-                      <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: THEME.textMuted }}>
-                        Taken staan klaar in Taken
                       </div>
                     </div>
                   </button>
@@ -4358,7 +4357,11 @@ export default function HuishoudApp() {
                           </div>
                         ) : (
                           <button
-                            onClick={() => (newEvent.repeat !== "none" ? setConfirmDeleteChoice(true) : removeEvent(editingId))}
+                            onClick={() =>
+                              newEvent.repeat !== "none"
+                                ? setConfirmDeleteChoice(true)
+                                : requestRemoveEvent({ id: editingId, title: newEvent.title })
+                            }
                             style={{
                               marginTop: 8,
                               width: "100%",
