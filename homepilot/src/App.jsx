@@ -261,6 +261,46 @@ const PREGNANCY_SELF_TASKS = [
 
 const PREGNANCY_START = "2026-08-08";
 
+const PREGNANCY_WEEK_INFO = {
+  4: "De bevruchte eicel heeft zich ingenesteld in de baarmoeder. Er vormt zich een kluitje cellen dat de basis legt voor het embryo en de placenta.",
+  5: "Het hartje begint te kloppen en de eerste aanleg van hersenen en ruggenmerg ontstaat. Het embryo is nog maar enkele millimeters groot.",
+  6: "Het hartje klopt regelmatig en de aanleg van armen en benen verschijnt als kleine knopjes. Ook ogen en oren beginnen zich te vormen.",
+  7: "De hersenen groeien snel en het gezicht krijgt vorm met neusgaatjes en oogjes. Handen en voeten worden zichtbaar als kleine plaatjes.",
+  8: "Vingers en tenen beginnen zich af te tekenen en de organen groeien verder. Het embryo is ongeveer zo groot als een framboos.",
+  9: "De staart is verdwenen en de baby heeft nu een herkenbare vorm met armen, benen, ellebogen en oogleden. De belangrijkste organen zijn aangelegd en gaan groeien.",
+  10: "Vanaf nu heet je baby een foetus. Nagels, tandknopjes en haarzakjes ontstaan en de baby maakt al kleine bewegingen, ook al voel je die nog niet.",
+  11: "De baby is ongeveer 4 cm en de vingers en tenen zijn los van elkaar. De nieren beginnen te werken en de baby kan al bewegen en rekken.",
+  12: "De reflexen komen op gang: de baby kan vuistjes maken en zijn mond openen. De organen zijn grotendeels aangelegd en gaan nu vooral rijpen.",
+  13: "De stembanden ontstaan en de baby krijgt unieke vingerafdrukken. Het hoofd is nog groot ten opzichte van het lijfje, dat nu sneller gaat groeien.",
+  14: "De baby kan gezichtsuitdrukkingen maken, zoals fronsen en grimassen. De nek wordt sterker en het lijfje wordt steeds beter in verhouding.",
+  15: "Er groeit fijn dons (lanugo) over het lijfje en de botten worden harder. De baby voelt licht en kan al op licht reageren, ook al zijn de ogen nog dicht.",
+  16: "De baby is ongeveer 11 cm en maakt veel bewegingen. De oogspieren en oren ontwikkelen zich en het skelet wordt verder verbeend.",
+  17: "Het vet begint zich op te bouwen onder de huid en de baby slikt vruchtwater. De navelstreng wordt dikker en sterker.",
+  18: "De baby kan gaan horen en reageert mogelijk op geluiden. Veel moeders voelen rond deze tijd de eerste bewegingen, als fladderingen.",
+  19: "Er vormt zich een beschermend laagje op de huid, de vernix. De zintuigen ontwikkelen zich verder: horen, ruiken, proeven en zien.",
+  20: "Halverwege de zwangerschap: de baby is ongeveer 25 cm en slaapt en wakker wordt in een eigen ritme. Je voelt de bewegingen steeds duidelijker.",
+  21: "De baby maakt steeds duidelijkere bewegingen, zoals schoppen en draaien. Het spijsverteringsstelsel oefent met het opnemen van vruchtwater.",
+  22: "De zintuigen worden gevoeliger, vooral de tastzin. De baby heeft wenkbrauwen en wimpers en kan met de handjes over het gezicht of de navelstreng strijken.",
+  23: "De baby reageert op harde geluiden en herkent je stem steeds beter. De longen oefenen met ademhalingsbewegingen.",
+  24: "De longen vormen steeds meer van de stof die ze later open houdt. De baby heeft nu een vast slaap- en waakritme en kan hikken, wat je als ritmisch tikken voelt.",
+  25: "De baby wordt voller doordat er meer vet wordt aangemaakt. De huid wordt minder doorschijnend en het haar groeit verder.",
+  26: "De ogen kunnen zich langzaam openen. De hersenen groeien snel en de baby reageert op licht dat door de buikwand komt.",
+  27: "De baby slaapt en waakt in vaste patronen en kan dromen. De hersenen ontwikkelen zich snel en de longen rijpen verder.",
+  28: "De baby opent en sluit de ogen en kan knipperen. Het bewegingspatroon wordt duidelijk herkenbaar; let op de bewegingen van je baby.",
+  29: "De botten worden harder en de baby heeft veel calcium nodig. De spieren en longen worden sterker en de baby schopt flink.",
+  30: "De baby is zo’n 40 cm en de hersenen groeien sterk. Het vet onder de huid neemt toe, waardoor de huid gladder wordt.",
+  31: "De baby kan steeds beter zijn ogen bewegen en draait het hoofd. Alle vijf zintuigen werken nu, en de longen blijven rijpen.",
+  32: "De nagels reiken tot de vingertoppen en de baby draait vaak met het hoofd naar beneden. Er is minder ruimte, dus bewegingen voelen anders aan.",
+  33: "De botten zijn bijna volledig verhard, behalve de schedel die nog zacht blijft voor de bevalling. De baby krijgt antistoffen van jou mee.",
+  34: "De longen zijn bijna rijp en de vernix wordt dikker. Veel baby’s liggen nu al met het hoofd naar beneden.",
+  35: "De nieren zijn volledig ontwikkeld en de lever kan afvalstoffen verwerken. De baby heeft weinig ruimte en groeit vooral nog in gewicht.",
+  36: "De baby is bijna klaar voor de geboorte en zakt vaak naar beneden in het bekken. De longen zijn grotendeels rijp en het zuigen is goed ontwikkeld.",
+  37: "De baby wordt gezien als voldragen: alle organen kunnen zelfstandig functioneren. Het lijfje is mooi gevuld en de baby oefent met ademen en zuigen.",
+  38: "De hersenen en longen rijpen nog steeds. De baby legt nog wat vet aan, wat helpt om na de geboorte warm te blijven.",
+  39: "De baby is klaar voor de geboorte en wacht op het juiste moment. De placenta blijft antistoffen doorgeven aan de baby.",
+  40: "De baby is voldragen en kan elk moment geboren worden. Ongeveer 50 cm lang en gemiddeld 3,5 kg, klaar om kennis te maken.",
+};
+
 function pregnancyWeekDate(startDate, week) {
   return toISO(addDays(fromISO(startDate), week * 7));
 }
@@ -824,6 +864,8 @@ function shade(hex, percent) {
 
 export default function HuishoudApp() {
   const [tab, setTab] = useState("home");
+  const [pregnancyOpen, setPregnancyOpen] = useState(false);
+  const [pregnancyViewWeek, setPregnancyViewWeek] = useState(null);
   const [user, setUser] = useState(null);
   const [data, setData] = useState({ stores: DEFAULT_STORES, lists: {}, cards: [], events: [], birthdays: [], todos: [], storeColors: {}, favorites: {}, favoriteLocations: [], meals: [], weekPlan: {}, pregnancy: { startDate: "" } });
   const [activeStore, setActiveStore] = useState(DEFAULT_STORES[0]);
@@ -1792,42 +1834,85 @@ export default function HuishoudApp() {
                   <div style={{ fontFamily: FONT_BODY, fontSize: 12, color: THEME.textMuted, fontWeight: 600, letterSpacing: 0.3, marginBottom: 8, textTransform: "uppercase" }}>
                     Zwangerschap
                   </div>
-                  <button
-                    onClick={() => setTab("taken")}
+                  <div
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      width: "100%",
                       background: `${THEME.accentDeep}14`,
                       border: `1px solid ${THEME.accentDeep}44`,
                       borderRadius: 12,
-                      padding: "12px 14px",
                       marginBottom: 20,
-                      cursor: "pointer",
-                      textAlign: "left",
+                      overflow: "hidden",
                     }}
                   >
-                    <span
+                    <button
+                      onClick={() => {
+                        setPregnancyViewWeek(wd ? wd.week : null);
+                        setPregnancyOpen((o) => !o);
+                      }}
                       style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 9,
-                        background: THEME.accentDeep,
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
+                        gap: 10,
+                        width: "100%",
+                        background: "transparent",
+                        border: "none",
+                        padding: "12px 14px",
+                        cursor: "pointer",
+                        textAlign: "left",
                       }}
                     >
-                      <Baby size={16} color="#fff" />
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: FONT_BODY, fontSize: 14, fontWeight: 700, color: THEME.text }}>
-                        {wd ? `Week ${wd.week}+${wd.day}` : "Zwangerschap"}
+                      <span
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 9,
+                          background: THEME.accentDeep,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Baby size={16} color="#fff" />
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: FONT_BODY, fontSize: 14, fontWeight: 700, color: THEME.text }}>
+                          {wd ? `Week ${wd.week}+${wd.day}` : "Zwangerschap"}
+                        </div>
                       </div>
-                    </div>
-                  </button>
+                      <span style={{ color: THEME.textMuted, fontSize: 16, lineHeight: 1, transform: pregnancyOpen ? "rotate(90deg)" : "none" }}>›</span>
+                    </button>
+                    {pregnancyOpen && wd && (() => {
+                      const viewWeek = pregnancyViewWeek == null ? wd.week : Math.min(pregnancyViewWeek, wd.week);
+                      const info = PREGNANCY_WEEK_INFO[viewWeek];
+                      const minWeek = Math.min(...Object.keys(PREGNANCY_WEEK_INFO).map(Number));
+                      return (
+                        <div style={{ padding: "0 14px 14px" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                            <button
+                              onClick={() => setPregnancyViewWeek(viewWeek - 1)}
+                              disabled={viewWeek <= minWeek}
+                              style={{ ...navArrow, opacity: viewWeek <= minWeek ? 0.35 : 1, cursor: viewWeek <= minWeek ? "default" : "pointer" }}
+                            >
+                              ‹
+                            </button>
+                            <div style={{ fontFamily: FONT_BODY, fontSize: 13, fontWeight: 700, color: THEME.text }}>
+                              Week {viewWeek}
+                            </div>
+                            <button
+                              onClick={() => setPregnancyViewWeek(viewWeek + 1)}
+                              disabled={viewWeek >= wd.week}
+                              style={{ ...navArrow, opacity: viewWeek >= wd.week ? 0.35 : 1, cursor: viewWeek >= wd.week ? "default" : "pointer" }}
+                            >
+                              ›
+                            </button>
+                          </div>
+                          <div style={{ fontFamily: FONT_BODY, fontSize: 14, lineHeight: 1.5, color: THEME.text }}>
+                            {info || "Geen informatie voor deze week."}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </>
               );
             })()}
